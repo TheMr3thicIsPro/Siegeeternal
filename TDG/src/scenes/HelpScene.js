@@ -223,7 +223,7 @@ const HTP_SECTIONS = [
       '',
       '👻 Bone Set  (stealth):',
       '  Helm: +2 armor · enemies detect you 30% slower',
-      '  Chest: +5 armor · stealth range 80px',
+      '  Chest: +5 armor · stealth range 200px (enemies freeze beyond this)',
       '  Greaves: +1 armor · 30% smaller enemy aggro range',
       '  Boots: +1 armor · +10% speed',
       '  FULL BONUS: Ghost Dancer — 20% chance enemies completely ignore your hit',
@@ -321,6 +321,10 @@ const HTP_SECTIONS = [
       'Campfire     — coal×5 + wood×5 + bone×10',
       '  Press E near campfire with Raw Meat → cooks to Cooked Meat.',
       '  Press E with Cooked Meat → eat, restores 30 HP.',
+      '',
+      'Dummy Statue — wood×12 + bone×8   · HP: 150 · DECOY',
+      '  Enemies within 200px ignore the player and attack the statue instead.',
+      '  Place near your base to redirect enemy waves. Destroyed when HP hits 0.',
     ],
   },
   {
@@ -645,7 +649,7 @@ export class HelpScene extends Phaser.Scene {
     }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
     back.on('pointerover', () => back.setStyle({ fill: '#FFE090' }));
     back.on('pointerout',  () => back.setStyle({ fill: '#C8A96E' }));
-    back.on('pointerdown', () => this.scene.start(this._returnTo ?? 'Menu', this._returnData));
+    back.on('pointerdown', () => this._goBack());
 
     this.add.rectangle(VW / 2, 42, VW, 1, 0x3D2B1F);
 
@@ -849,8 +853,18 @@ export class HelpScene extends Phaser.Scene {
 
   // ── Input ─────────────────────────────────────────────────
 
+  _goBack() {
+    if (this._returnTo === 'Game') {
+      // Game is sleeping — wake it, then stop this scene
+      this.scene.wake('Game');
+      this.scene.stop('Help');
+    } else {
+      this.scene.start(this._returnTo ?? 'Menu', this._returnData);
+    }
+  }
+
   _setupInput() {
-    this.input.keyboard.on('keydown-ESC',  () => this.scene.start(this._returnTo ?? 'Menu', this._returnData));
+    this.input.keyboard.on('keydown-ESC',  () => this._goBack());
     this.input.on('wheel', (_p, _o, _dx, dy) => this._scroll(dy * 0.55));
     this.input.keyboard.on('keydown-DOWN', () => this._scroll(40));
     this.input.keyboard.on('keydown-UP',   () => this._scroll(-40));

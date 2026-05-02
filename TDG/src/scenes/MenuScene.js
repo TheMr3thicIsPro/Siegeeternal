@@ -9,9 +9,10 @@ import { soundMgr }        from '../systems/SoundManager.js';
 const SLOT_KEYS = ['siege_eternal_save_1', 'siege_eternal_save_2', 'siege_eternal_save_3'];
 
 // ── Version history ───────────────────────────────────────
-export const CURRENT_VERSION = 'v0.11.3';
+export const CURRENT_VERSION = 'v0.11.4';
 
 const VERSION_HISTORY = [
+  { ver: 'v0.11.4', date: 'May 2026', notes: 'Dummy Statue decoy (200px enemy attractor) · Raids no longer spawn arrow towers · Codex item-loss bug fixed (sleep/wake) · Bone Chestplate stealth 200px · Chests reset every day' },
   { ver: 'v0.11.3', date: 'Apr 2026', notes: 'Codex full audit: blueprint text fixed · weapons tab · machines · cursed zone · relics · all chest types · 9 perk corrections' },
   { ver: 'v0.11.2', date: 'Apr 2026', notes: 'Hotbar removed · All armour in one tab (4×5 grid) · ~ key toggles labels · Blueprint towers in Codex with weaknesses & purple style' },
   { ver: 'v0.11.1', date: 'Apr 2026', notes: 'Emerald cave bonuses (spd/mine/dmg/lifesteal) · Torch wider with emerald helm · Crystal set craft discount · Cave armour state' },

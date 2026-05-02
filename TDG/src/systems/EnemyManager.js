@@ -216,13 +216,49 @@ export class EnemyManager {
         const boneChest = scene.armor === 'armor_bone';
         const bonePants = scene.pants  === 'bone_pants';
         if (boneChest || bonePants) {
-          const baseRange  = boneChest ? 80 : 96;
+          const baseRange  = boneChest ? 200 : 96;
           const pantsMulti = bonePants ? 0.70 : 1.0;
           if (Math.hypot(sp.x - px, sp.y - py) > baseRange * pantsMulti) {
             sp.body.setVelocity(0, 0);
             this._updateHPBar(enemy);
             continue;
           }
+        }
+      }
+
+      // ── Dummy statue decoy — enemies within 200px are drawn to it ──
+      {
+        let nearestDecoy = null, nearestDecoyD = 200;
+        for (const m of (scene.towerMgr?.machines ?? [])) {
+          if (!m.def?.decoy || !m.sprite?.active) continue;
+          const d = Math.hypot(sp.x - m.sprite.x, sp.y - m.sprite.y);
+          if (d < nearestDecoyD) { nearestDecoyD = d; nearestDecoy = m; }
+        }
+        if (nearestDecoy) {
+          const ddx = nearestDecoy.sprite.x - sp.x, ddy = nearestDecoy.sprite.y - sp.y;
+          const dlen = Math.sqrt(ddx * ddx + ddy * ddy) || 1;
+          const weatherMult = scene.weatherSystem ? scene.weatherSystem.enemySpeedMult() : 1.0;
+          const spd = def.spd * enemy.slow * weatherMult * 0.85;
+          sp.body.setVelocity(ddx / dlen * spd, ddy / dlen * spd);
+          // Hit the statue when adjacent
+          if (nearestDecoyD < 24) {
+            enemy._decoyHitTimer = (enemy._decoyHitTimer ?? 0) - delta;
+            if (enemy._decoyHitTimer <= 0) {
+              enemy._decoyHitTimer = 600;
+              nearestDecoy.hp = (nearestDecoy.hp ?? nearestDecoy.def.hp ?? 150) - def.dmg;
+              this.spawnParticles(nearestDecoy.sprite.x, nearestDecoy.sprite.y, 0xCCBBAA, 3);
+              if (nearestDecoy.hp <= 0) {
+                scene.hud?.showMsg('Dummy Statue destroyed!', 2000);
+                this.spawnParticles(nearestDecoy.sprite.x, nearestDecoy.sprite.y, 0xAAA090, 10);
+                const { x, y } = nearestDecoy.grid;
+                if (scene.mapData[y]?.[x]) scene.mapData[y][x].structure = null;
+                nearestDecoy.sprite.destroy();
+                scene.towerMgr.machines = scene.towerMgr.machines.filter(m => m !== nearestDecoy);
+              }
+            }
+          }
+          this._updateHPBar(enemy);
+          continue;
         }
       }
 
@@ -606,24 +642,7 @@ export class EnemyManager {
       scene.inventory.bone = (scene.inventory.bone || 0) + 3;
     }
 
-    // ── Raider kill reward — place a 2×2 of arrow towers at the kill site ──
-    if (enemy.isRaider && !enemy.def.boss) {
-      const tx0 = Math.round(sp.x / TS) - 1;   // top-left of the 2×2 grid
-      const ty0 = Math.round(sp.y / TS) - 1;
-      let placed = 0;
-      for (let dy = 0; dy < 2; dy++) {
-        for (let dx = 0; dx < 2; dx++) {
-          const tx = tx0 + dx;
-          const ty = ty0 + dy;
-          if (tx < 1 || ty < 1 || tx >= MW - 1 || ty >= MH - 1) continue;
-          const cell = scene.mapData?.[ty]?.[tx];
-          if (!cell || cell.structure || cell.terrain === 'river' || cell.terrain === 'bwall') continue;
-          scene.towerMgr?.placeTower('arrow', tx, ty);
-          placed++;
-        }
-      }
-      if (placed > 0) scene.hud?.showMsg(`Raider slain! ${placed} Arrow Tower${placed > 1 ? 's' : ''} claimed!`, 2500);
-    }
+    // Raider kill — no tower spawns (removed)
 
     sp.destroy();
     enemy.hpBg.destroy();

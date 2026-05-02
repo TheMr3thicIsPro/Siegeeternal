@@ -137,8 +137,14 @@ export class GameScene extends Phaser.Scene {
       this.cameras.main.shake = () => {};
     }
 
-    // ── Listen for wake event (returning from cave) ───────
+    // ── Listen for wake event (returning from cave or codex) ──
     this.events.on('wake', () => {
+      // Returning from codex — just un-sleep, no state restoration needed
+      if (this._codexOpen) {
+        this._codexOpen = false;
+        return;
+      }
+      // Returning from cave
       this._caveTransitioning = true;
       this.time.delayedCall(2000, () => { this._caveTransitioning = false; });
       const hp    = this.registry.get('playerHP');
@@ -1215,8 +1221,13 @@ export class GameScene extends Phaser.Scene {
     };
     mkBtn(cy - 25, '[ RESUME ]',        () => this._togglePause());
     mkBtn(cy + 25, '[ CODEX ]',         () => {
-      this._togglePause();
-      this.scene.start('Help', { returnTo: 'Game', slotId: this.slotId, hardcore: this.isHardcore });
+      // Hide pause menu and sleep Game so state is fully preserved while Codex is open
+      this._paused = false;
+      this._pauseMenu?.forEach(i => i.setVisible(false));
+      this.physics.resume();
+      this._codexOpen = true;
+      this.scene.sleep('Game');
+      this.scene.launch('Help', { returnTo: 'Game', slotId: this.slotId, hardcore: this.isHardcore });
     });
     mkBtn(cy + 75, '[ SAVE  &  QUIT ]', () => { this.saveGame(); this.scene.start('Menu'); });
     items.forEach(i => i.setVisible(false));
