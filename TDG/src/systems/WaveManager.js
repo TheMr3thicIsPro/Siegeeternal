@@ -46,8 +46,8 @@ export class WaveManager {
     this.scene.hud?.showMsg(`Day ${this.scene.wave} — build and gather!`, 4000);
     soundMgr.dayStart();
 
-    // Reset all chests every 3 waves so players can re-loot over time
-    if (this.scene.wave > 0 && this.scene.wave % 3 === 0) {
+    // Reset all chests every day so players can re-loot each cycle
+    if (this.scene.wave > 0) {
       this._resetChests();
     }
 

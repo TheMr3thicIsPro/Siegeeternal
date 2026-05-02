@@ -69,6 +69,7 @@ export class TowerManager {
     const def = defOverride || MACHINE_DEFS[key];
     const sp  = this.scene.add.sprite(tx * TS + TS / 2, ty * TS + TS / 2, def.tex).setDepth(3);
     const obj = { def, key, sprite: sp, grid: { x: tx, y: ty }, timer: 0 };
+    if (def.hp) { obj.hp = def.hp; obj.maxHp = def.hp; }
     this.scene.mapData[ty][tx].structure = obj;
     this.machines.push(obj);
     return obj;

@@ -45,6 +45,7 @@ export const MACHINE_DEFS = {
   kiln:        { name: 'Kiln',         cost: { stone: 8, wood: 4  }, produces: { coal: 1  }, interval: 8000, tex: 'mc_kiln'  },
   scrapbench:  { name: 'Scrap Bench',  cost: { iron: 4,  stone: 3 }, produces: { bone: 2  }, interval: 7000, tex: 'mc_scrap' },
   campfire:    { name: 'Campfire',     cost: { coal: 5,  wood: 5, bone: 10 }, produces: {}, interval: 99999, tex: 'campfire' },
+  dummy_statue: { name: 'Dummy Statue', cost: { wood: 12, bone: 8 }, produces: {}, interval: 99999, tex: 'dummy_statue', decoy: true, hp: 150, desc: 'Attracts nearby enemies (200px). Enemies attack it instead of you until destroyed.' },
 };
 
 // ── Wall definitions (4 tiers) ─────────────────────────────
@@ -290,7 +291,7 @@ export const UNCURSE_TOKEN_DEF = { name: 'Uncurse Token', cost: { crystal: 8, so
 
 // Armor — crafted chestplates, reduce incoming damage
 export const ARMOR_DEFS = {
-  bone:    { name: 'Bone Chestplate',    cost: { bone: 15, souls: 5                    }, armor: 5,  tex: 'armor_bone',    stealth: 80                  },
+  bone:    { name: 'Bone Chestplate',    cost: { bone: 15, souls: 5                    }, armor: 5,  tex: 'armor_bone',    stealth: 200                 },
   iron:    { name: 'Iron Chestplate',    cost: { iron: 9                               }, armor: 5,  tex: 'armor_iron'                                   },
   crystal: { name: 'Crystal Chestplate', cost: { crystal: 9                            }, armor: 12, tex: 'armor_crystal'                                },
   ruby:    { name: 'Ruby Chestplate',    cost: { ruby: 15, crystal: 5, souls: 1        }, armor: 15, tex: 'armor_ruby',    nightBonus: 0.15               },

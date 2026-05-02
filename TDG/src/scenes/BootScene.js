@@ -430,6 +430,24 @@ export class BootScene extends Phaser.Scene {
       g.fillStyle(0x9AB0C0); g.fillRect(6, 18, 20, 6);
     });
 
+    // Dummy statue — crude humanoid figure on a stone pedestal, acts as enemy decoy
+    tex('dummy_statue', TS, TS, g => {
+      // Pedestal base
+      g.fillStyle(0x7A7065); g.fillRect(6, 26, 20, 6);
+      g.fillStyle(0x5A5550); g.fillRect(6, 26, 20, 1); g.fillRect(6, 26, 1, 6); g.fillRect(25, 26, 1, 6);
+      // Torso
+      g.fillStyle(0xAAA090); g.fillRect(11, 13, 10, 12);
+      // Head
+      g.fillStyle(0xBBAA99); g.fillCircle(16, 9, 5);
+      g.fillStyle(0x997766, 0.6); g.fillCircle(14, 8, 2);
+      // Arms
+      g.fillStyle(0xAAA090); g.fillRect(6, 14, 5, 7); g.fillRect(21, 14, 5, 7);
+      // Legs
+      g.fillRect(11, 25, 4, 2); g.fillRect(17, 25, 4, 2);
+      // Highlight
+      g.fillStyle(0xCCBBAA, 0.45); g.fillRect(12, 14, 3, 6);
+    });
+
     // ── Projectiles ───────────────────────────────────────
     tex('proj_arrow',  8, 8, g => { g.fillStyle(0xEDE0C4); g.fillCircle(4, 4, 3); });
     tex('proj_flame',  8, 8, g => { g.fillStyle(0xFF6400); g.fillCircle(4, 4, 4); });
