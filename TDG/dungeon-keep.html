@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Dungeon Keep</title>
+<meta charset="UTF-8">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0808; display:flex; justify-content:center; align-items:center; min-height:100vh; overflow:hidden; }
+</style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+<script>
+'use strict';
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+const TS = 32;          // tile size
+const MW = 60;          // map width tiles
+const MH = 60;          // map height tiles
+const WW = MW * TS;     // world width px
+const WH = MH * TS;     // world height px
+const VW = 960;
+const VH = 640;
+const DAY_DUR   = 120000;
+const NIGHT_DUR = 120000;
+const INTERACT_RANGE = 52;
+const PLAYER_SPEED = 180;
+const BASE_WAVE_SIZE = 5;
+
+// ============================================================
+// TOWER & ENTITY DEFS
+// ============================================================
+const TOWER_DEFS = {
+  arrow:    { name:'Arrow Tower',    cost:{wood:5,stone:3},         range:96,  rate:1200, dmg:15,                dayOn:true,  nightOn:true,  color:0x8B7355, tex:'tw_arrow'  },
+  ballista: { name:'Ballista',       cost:{wood:8,iron:4},          range:144, rate:2500, dmg:45,                dayOn:true,  nightOn:true,  color:0x5C4033, tex:'tw_ballista'},
+  flame:    { name:'Flame Vat',      cost:{stone:6,coal:4},         range:80,  rate:800,  dmg:20, aoe:48,        dayOn:true,  nightOn:false, color:0xC45C3A, tex:'tw_flame'  },
+  bonefire: { name:'Bonefire',       cost:{bone:8,coal:3},          range:112, rate:1500, dmg:25, light:true,    dayOn:false, nightOn:true,  color:0xFF8C00, tex:'tw_bonefire'},
+  frost:    { name:'Frost Spire',    cost:{crystal:5,stone:4},      range:100, rate:1000, dmg:10, slow:0.45,     dayOn:true,  nightOn:true,  color:0x5BBCB0, tex:'tw_frost'  },
+  cannon:   { name:'Siege Cannon',   cost:{iron:8,stone:6,coal:2},  range:128, rate:3000, dmg:80, aoe:64,        dayOn:true,  nightOn:false, color:0x4A4A4A, tex:'tw_cannon' },
+  voltspire:{ name:'Volt Spire',     cost:{crystal:6,iron:4},       range:110, rate:1800, dmg:30, chain:3,       dayOn:true,  nightOn:true,  color:0xF0E060, tex:'tw_volt'   },
+  poison:   { name:'Poison Vent',    cost:{coal:5,crystal:3,stone:2},range:88, rate:900,  dmg:8,  dot:3,         dayOn:true,  nightOn:true,  color:0x5A9B3A, tex:'tw_poison' },
+};
+
+const MACHINE_DEFS = {
+  woodcutter: { name:'Wood Cutter',   cost:{stone:4,iron:2},   produces:{wood:1},   interval:5000,  color:0x6B8F4E, tex:'mc_wood'  },
+  stonedrill:  { name:'Stone Drill',  cost:{iron:5,coal:2},    produces:{stone:1},  interval:6000,  color:0x7A7065, tex:'mc_stone' },
+  kiln:        { name:'Kiln',         cost:{stone:8,wood:4},   produces:{coal:1},   interval:8000,  color:0x8B2500, tex:'mc_kiln'  },
+  scrapbench:  { name:'Scrap Bench',  cost:{iron:4,stone:3},   produces:{bone:2},   interval:7000,  color:0x6B7B8D, tex:'mc_scrap' },
+};
+
+const ENEMY_DEFS = {
+  shambler:    { hp:60,   spd:45,  dmg:10, sz:14, col:0xC45C3A, drop:{bone:1},             name:'Shambler'   },
+  skitterer:   { hp:25,   spd:90,  dmg:5,  sz:9,  col:0xE87A5D, drop:{bone:1},             name:'Skitterer'  },
+  ironback:    { hp:120,  spd:30,  dmg:20, sz:16, col:0x6B7B8D, drop:{iron:1,bone:1}, armor:5, name:'Ironback'},
+  burrower:    { hp:50,   spd:60,  dmg:15, sz:12, col:0x8B6914, drop:{bone:2}, burrow:true, name:'Burrower'  },
+  looter:      { hp:40,   spd:85,  dmg:8,  sz:11, col:0xD4A017, drop:{gold:3}, machines:true, name:'Looter'  },
+  shamanbeast: { hp:80,   spd:40,  dmg:15, sz:13, col:0xA87DC8, drop:{bone:3,crystal:1}, heals:true, name:'Shaman'},
+  shade:       { hp:35,   spd:75,  dmg:12, sz:10, col:0x9B6BB5, drop:{crystal:1}, invis:true, night:true, name:'Shade'},
+  nightcrawler:{ hp:70,   spd:55,  dmg:18, sz:13, col:0x7B3F8C, drop:{bone:2}, splits:true, night:true, name:'Crawler'},
+  voidbat:     { hp:45,   spd:80,  dmg:10, sz:11, col:0x6B4499, drop:{crystal:1,bone:1}, arc:true, night:true, name:'Voidbat'},
+  siege_hulk:  { hp:800,  spd:25,  dmg:40, sz:40, col:0xD4A017, drop:{gold:20,iron:5}, boss:true, spawns:'shambler', name:'Siege Hulk'},
+  pale_mother: { hp:600,  spd:35,  dmg:30, sz:40, col:0xE8D8F8, drop:{gold:20,crystal:5}, boss:true, spawns:'shade', name:'Pale Mother'},
+  ironclad:    { hp:1000, spd:20,  dmg:50, sz:40, col:0x8090A8, drop:{gold:25,iron:8,crystal:3}, boss:true, name:'Ironclad'},
+};
+
+// ============================================================
+// NOISE
+// ============================================================
+function vn(x,y,s=42){ let n=((x*1619+y*31337+s*1013)&0x7fffffff)>>>0; n=(n^(n>>8))>>>0; return(n&0xffff)/0xffff; }
+function sn(x,y,s){ const ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy,ux=fx*fx*(3-2*fx),uy=fy*fy*(3-2*fy),a=vn(ix,iy,s),b=vn(ix+1,iy,s),c=vn(ix,iy+1,s),d=vn(ix+1,iy+1,s); return a+(b-a)*ux+(c-a)*uy+(d-a)*ux*uy; }
+function fn(x,y,s,o=4){ let v=0,a=1,f=1,m=0; for(let i=0;i<o;i++){ v+=sn(x*f,y*f,s+i*100)*a; m+=a; a*=.5; f*=2; } return v/m; }
+function pdist(a,b){ const dx=a.x-b.x,dy=a.y-b.y; return Math.sqrt(dx*dx+dy*dy); }
+
+// ============================================================
+// BOOT SCENE — generate all textures
+// ============================================================
+class BootScene extends Phaser.Scene {
+  constructor(){ super('Boot'); }
+  create(){
+    const G = (w,h,fn)=>{ const g=this.make.graphics({x:0,y:0,add:false}); fn(g); g.generateTexture(fn.name||'_t',w,h); g.destroy(); };
+    const tex = (key,w,h,fn)=>{ const g=this.make.graphics({x:0,y:0,add:false}); fn(g); g.generateTexture(key,w,h); g.destroy(); };
+
+    // Ground tiles
+    const gndCols=[0x3D2B1F,0x4A3528,0x5C4033];
+    gndCols.forEach((c,i)=>tex('gnd'+i,TS,TS,g=>{
+      g.fillStyle(c); g.fillRect(0,0,TS,TS);
+      g.fillStyle(0x2A1C10,0.3); g.fillRect(2+i*3,10,7,1); g.fillRect(18,20-i*2,5,1);
+    }));
+
+    tex('deep',TS,TS,g=>{ g.fillStyle(0x1C1620); g.fillRect(0,0,TS,TS); g.fillStyle(0x261B2A,0.5); g.fillRect(3,3,26,26); g.fillStyle(0x1A1218,0.3); g.fillRect(5,5,6,1); g.fillRect(18,22,8,1); });
+
+    tex('bwall',TS,TS,g=>{ g.fillStyle(0x4A4540); g.fillRect(0,0,TS,TS); g.fillStyle(0x3A3530); g.fillRect(0,0,TS,2); g.fillRect(0,0,2,TS); g.fillRect(0,15,TS,2); g.fillRect(16,0,2,15); g.fillStyle(0x5A5550); g.fillRect(3,3,12,11); g.fillRect(18,3,12,11); g.fillRect(3,18,12,11); g.fillRect(18,18,12,11); });
+
+    tex('pwall',TS,TS,g=>{ g.fillStyle(0x7A7065); g.fillRect(0,0,TS,TS); g.fillStyle(0x5A5550); g.fillRect(0,0,TS,2); g.fillRect(0,0,2,TS); g.fillRect(0,15,TS,2); g.fillRect(16,0,2,14); g.fillRect(2,18,14,12); g.fillStyle(0x9A908A); g.fillRect(4,4,10,9); g.fillRect(18,4,10,9); g.fillRect(4,20,10,8); g.fillRect(18,20,10,8); });
+
+    // Resource nodes
+    tex('tree',TS,TS,g=>{ g.fillStyle(0x3D2E1A); g.fillRect(13,20,6,12); g.fillStyle(0x3A5631); g.fillCircle(16,12,11); g.fillStyle(0x4A6741); g.fillCircle(16,11,9); g.fillStyle(0x5A7A51,0.5); g.fillCircle(12,9,5); });
+    tex('stonenode',TS,TS,g=>{ g.fillStyle(0x7A7065); g.fillEllipse(16,19,26,18); g.fillStyle(0x9A908A); g.fillEllipse(12,14,12,8); g.fillStyle(0x5A5550); g.fillEllipse(22,22,7,5); });
+    tex('coalnode',TS,TS,g=>{ g.fillStyle(0x252525); g.fillEllipse(16,18,22,16); g.fillStyle(0xD2691E,0.7); g.fillCircle(12,14,3); g.fillCircle(20,18,2); g.fillStyle(0xFF6400,0.35); g.fillCircle(15,17,2); });
+    tex('ironnode',TS,TS,g=>{ g.fillStyle(0x8B7355); g.fillEllipse(16,18,24,18); g.fillStyle(0xC0A882); g.fillEllipse(11,13,10,7); g.fillStyle(0xA08060); g.fillEllipse(21,20,7,5); });
+    tex('crystalnode',TS,TS,g=>{ g.fillStyle(0x3BBCB0,0.2); g.fillRect(0,0,TS,TS); g.fillStyle(0x5BBCB0); g.fillTriangle(16,4,9,28,23,28); g.fillStyle(0x3A9C90); g.fillTriangle(16,8,11,28,16,28); g.fillStyle(0x7DDDD6,0.6); g.fillTriangle(13,11,9,24,17,24); });
+
+    // Player
+    tex('player',TS,TS,g=>{ g.fillStyle(0xC8A96E); g.fillEllipse(16,20,18,22); g.fillStyle(0x8B7355); g.fillCircle(16,9,6); g.fillStyle(0xC8A96E,0.5); g.fillTriangle(11,7,21,7,16,15); });
+
+    // Enemies
+    tex('e_shambler',TS,TS,g=>{ g.fillStyle(0xC45C3A); g.fillEllipse(16,21,20,16); g.fillEllipse(16,11,14,12); g.fillStyle(0xA43C1A,0.5); g.fillRect(8,20,16,2); });
+    tex('e_skitterer',TS,TS,g=>{ g.fillStyle(0xE87A5D); g.fillEllipse(16,19,14,10); g.fillEllipse(16,13,8,8); g.fillStyle(0xD86A4D); for(let i=0;i<3;i++){ g.fillRect(6+i*4,20,1,5); g.fillRect(19+i*3,20,1,5); } });
+    tex('e_ironback',TS,TS,g=>{ g.fillStyle(0x6B7B8D); g.fillRect(5,12,22,14); g.fillEllipse(16,12,18,8); g.fillStyle(0x8B9BAD); g.fillEllipse(16,17,20,14); g.fillStyle(0x5B6B7D); g.fillRect(5,15,22,2); });
+    tex('e_burrower',TS,TS,g=>{ g.fillStyle(0x8B6914); g.fillEllipse(16,18,18,12); g.fillEllipse(16,12,9,12); g.fillStyle(0x6B4910,0.5); g.fillRect(9,18,14,2); g.fillRect(9,22,14,2); });
+    tex('e_looter',TS,TS,g=>{ g.fillStyle(0xD4A017); g.fillRect(12,8,8,18); g.fillCircle(16,8,5); g.fillStyle(0xB4801A); g.fillEllipse(23,20,9,11); g.fillStyle(0xC49027,0.5); g.fillCircle(23,20,4); });
+    tex('e_shamanbeast',TS,TS,g=>{ g.fillStyle(0xA87DC8); g.fillRect(13,10,6,20); g.fillCircle(16,8,5); g.fillStyle(0xC8A040); g.fillRect(24,4,2,22); g.fillCircle(25,4,3); g.fillStyle(0x9B6BB5,0.25); g.fillEllipse(16,30,14,5); });
+    tex('e_shade',TS,TS,g=>{ g.fillStyle(0x9B6BB5,0.12); g.fillEllipse(16,16,18,22); g.fillStyle(0x9B6BB5,0.45); g.fillEllipse(16,10,10,12); g.lineStyle(1.5,0xBB8BD5,0.55); g.strokeEllipse(16,16,18,22); });
+    tex('e_nightcrawler',TS,TS,g=>{ g.fillStyle(0x7B3F8C); g.fillEllipse(16,16,16,12); g.fillStyle(0x6B2F7C); for(let i=0;i<4;i++){ const a=i*Math.PI/4; g.fillRect(16+Math.cos(a)*7-1,16+Math.sin(a)*7-1,2,7); g.fillRect(16-Math.cos(a)*7-1,16+Math.sin(a)*7-1,2,7); } });
+    tex('e_voidbat',TS,TS,g=>{ g.fillStyle(0x6B4499); g.fillEllipse(16,16,10,8); g.fillStyle(0x8B64B9,0.65); g.fillTriangle(16,16,2,8,14,21); g.fillTriangle(16,16,30,8,18,21); });
+    tex('e_siege_hulk',48,48,g=>{ g.fillStyle(0xD4A017); g.fillRect(4,10,40,34); g.fillStyle(0xA07010); g.fillRect(8,14,32,26); g.fillStyle(0x604010); g.fillRect(14,18,20,12); g.fillStyle(0xF0C030); g.fillRect(18,20,6,2); g.fillRect(22,18,2,6); });
+    tex('e_pale_mother',48,48,g=>{ g.fillStyle(0xE8D8F8,0.8); g.fillRect(16,8,16,36); g.fillCircle(24,8,9); g.fillStyle(0xD0C0E8,0.4); g.fillEllipse(24,42,22,6); g.fillStyle(0xC8B8E8,0.5); for(let i=0;i<3;i++) g.fillCircle(8+i*16,24,4); });
+    tex('e_ironclad',48,48,g=>{ g.fillStyle(0x8090A8); g.fillRect(4,6,40,38); g.fillStyle(0x607090); g.fillRect(4,6,40,8); g.fillRect(4,6,8,38); g.fillRect(36,6,8,38); g.fillStyle(0xA0B0C8); g.fillRect(14,16,20,12); g.fillStyle(0x60A0C0); g.fillCircle(24,22,5); });
+
+    // Towers
+    tex('tw_arrow',TS,TS,g=>{ g.fillStyle(0x8B7355); g.fillRect(6,16,20,16); g.fillRect(10,9,12,9); g.fillStyle(0x7A6545); g.fillRect(6,6,4,5); g.fillRect(14,6,4,5); g.fillRect(22,6,4,5); });
+    tex('tw_ballista',TS,TS,g=>{ g.fillStyle(0x5C4033); g.fillRect(8,18,16,13); g.fillStyle(0x4A3025); g.fillRect(4,14,24,6); g.fillStyle(0x6C5045); g.fillRect(14,8,4,8); });
+    tex('tw_flame',TS,TS,g=>{ g.fillStyle(0xC45C3A); g.fillRect(6,18,20,13); g.fillStyle(0xFF8C00); g.fillTriangle(10,18,16,5,22,18); g.fillStyle(0xFF4500,0.7); g.fillTriangle(13,18,16,10,19,18); });
+    tex('tw_bonefire',TS,TS,g=>{ g.fillStyle(0x3D2B1F); g.fillRect(10,22,12,9); g.fillStyle(0xFF6400); g.fillTriangle(8,22,16,5,24,22); g.fillStyle(0xFFAA00); g.fillTriangle(11,22,16,10,21,22); g.fillStyle(0xFFDD00); g.fillTriangle(13,22,16,15,19,22); });
+    tex('tw_frost',TS,TS,g=>{ g.fillStyle(0x5BBCB0); g.fillRect(12,13,8,18); g.fillTriangle(6,13,26,13,16,2); g.fillStyle(0x3A9C90,0.45); g.fillTriangle(10,13,22,13,16,6); });
+    tex('tw_cannon',TS,TS,g=>{ g.fillStyle(0x4A4A4A); g.fillRect(4,18,24,12); g.fillCircle(14,20,9); g.fillStyle(0x2A2A2A); g.fillRect(18,14,11,6); });
+    tex('tw_volt',TS,TS,g=>{ g.fillStyle(0x8B8030); g.fillRect(10,14,12,17); g.fillStyle(0xF0E060); g.fillTriangle(6,14,26,14,16,2); g.fillStyle(0xFFFF99,0.6); g.fillRect(13,6,6,8); });
+    tex('tw_poison',TS,TS,g=>{ g.fillStyle(0x3A6B2A); g.fillRect(6,16,20,14); g.fillStyle(0x5A9B3A); g.fillCircle(16,13,8); g.fillStyle(0x2A8B1A,0.7); g.fillCircle(13,12,4); g.fillCircle(19,11,3); });
+
+    // Machines
+    tex('mc_wood',TS,TS,g=>{ g.fillStyle(0x6B8F4E); g.fillRect(4,13,24,15); g.fillStyle(0x5A7A40); g.fillRect(4,13,4,15); g.fillStyle(0xB0B0B0); g.fillCircle(22,18,6); g.fillStyle(0x909090); for(let i=0;i<8;i++){ const a=i*Math.PI/4; g.fillRect(22+Math.cos(a)*5,18+Math.sin(a)*5,2,2); } });
+    tex('mc_stone',TS,TS,g=>{ g.fillStyle(0x7A7065); g.fillRect(4,15,24,13); g.fillStyle(0x5A5550); g.fillTriangle(14,4,18,4,16,15); g.fillRect(12,9,8,6); });
+    tex('mc_kiln',TS,TS,g=>{ g.fillStyle(0x8B2500); g.fillRect(4,10,24,18); g.fillStyle(0xFF4500); g.fillRect(10,14,12,10); g.fillStyle(0xFF8C00,0.65); g.fillRect(12,15,8,6); });
+    tex('mc_scrap',TS,TS,g=>{ g.fillStyle(0x6B7B8D); g.fillRect(2,16,28,13); g.fillRect(2,13,8,5); g.fillRect(22,13,8,5); g.fillStyle(0x9AB0C0); g.fillRect(6,18,20,6); });
+
+    // Projectiles
+    tex('proj_arrow',8,8,g=>{ g.fillStyle(0xEDE0C4); g.fillCircle(4,4,3); });
+    tex('proj_flame',8,8,g=>{ g.fillStyle(0xFF6400); g.fillCircle(4,4,4); });
+    tex('proj_ice',8,8,g=>{ g.fillStyle(0x5BBCB0); g.fillCircle(4,4,3); });
+    tex('proj_volt',8,8,g=>{ g.fillStyle(0xFFFF60); g.fillCircle(4,4,4); });
+    tex('proj_poison',8,8,g=>{ g.fillStyle(0x5ADB3A); g.fillCircle(4,4,3); });
+    tex('particle',6,6,g=>{ g.fillStyle(0xEDE0C4); g.fillCircle(3,3,3); });
+    tex('light',128,128,g=>{ for(let r=64;r>0;r-=4){ g.fillStyle(0xFFAA44, (64-r)/128*0.3); g.fillCircle(64,64,r); } });
+
+    // UI / icons
+    const iconDefs=[['ico_wood',0x6B8F4E],['ico_stone',0x7A7065],['ico_bone',0xEDE0C4],['ico_coal',0x333333],['ico_iron',0xC0A882],['ico_crystal',0x5BBCB0],['ico_gold',0xD4A017]];
+    iconDefs.forEach(([k,c])=>tex(k,10,10,g=>{ g.fillStyle(c); g.fillRect(0,0,10,10); }));
+
+    // Cursor
+    tex('cursor',TS,TS,g=>{ g.lineStyle(2,0xFFFFFF,0.8); g.strokeRect(2,2,28,28); g.lineStyle(1,0xFFFFFF,0.4); g.lineBetween(16,0,16,32); g.lineBetween(0,16,32,16); });
+    tex('cursor_red',TS,TS,g=>{ g.lineStyle(2,0xFF4444,0.9); g.strokeRect(2,2,28,28); });
+
+    // HP/mana bar backgrounds
+    tex('bar_bg',26,4,g=>{ g.fillStyle(0x111111); g.fillRect(0,0,26,4); });
+    tex('bar_hp',26,4,g=>{ g.fillStyle(0x880000); g.fillRect(0,0,26,4); });
+    tex('bar_mp',26,4,g=>{ g.fillStyle(0x004488); g.fillRect(0,0,26,4); });
+
+    this.scene.start('Menu');
+  }
+}
+
+// ============================================================
+// MENU SCENE
+// ============================================================
+class MenuScene extends Phaser.Scene {
+  constructor(){ super('Menu'); }
+  create(){
+    const cx=VW/2, cy=VH/2;
+    this.add.rectangle(cx,cy,VW,VH,0x0a0808);
+    this.add.text(cx,cy-140,'DUNGEON KEEP',{fontSize:'48px',fill:'#EDE0C4',fontFamily:'monospace',stroke:'#3D2B1F',strokeThickness:4}).setOrigin(0.5);
+    this.add.text(cx,cy-80,'Hold the line. Build smarter. Survive the night.',{fontSize:'14px',fill:'#C8A96E',fontFamily:'monospace'}).setOrigin(0.5);
+
+    // Check for save
+    const hasSave = !!localStorage.getItem('dungeonkeep_save');
+
+    const btnStyle = (col)=>({ fontSize:'22px', fill:'#EDE0C4', fontFamily:'monospace', backgroundColor:col, padding:{x:20,y:10} });
+
+    const newBtn = this.add.text(cx, cy, 'NEW GAME', btnStyle('#3D2B1F')).setOrigin(0.5).setInteractive({useHandCursor:true});
+    newBtn.on('pointerover', ()=>newBtn.setStyle({fill:'#FFE090'}));
+    newBtn.on('pointerout', ()=>newBtn.setStyle({fill:'#EDE0C4'}));
+    newBtn.on('pointerdown', ()=>{ localStorage.removeItem('dungeonkeep_save'); this.scene.start('Game',{newGame:true}); });
+
+    if(hasSave){
+      const contBtn = this.add.text(cx, cy+70, 'CONTINUE', btnStyle('#3D2B1F')).setOrigin(0.5).setInteractive({useHandCursor:true});
+      contBtn.on('pointerover', ()=>contBtn.setStyle({fill:'#FFE090'}));
+      contBtn.on('pointerout', ()=>contBtn.setStyle({fill:'#EDE0C4'}));
+      contBtn.on('pointerdown', ()=>this.scene.start('Game',{newGame:false}));
+    }
+
+    this.add.text(cx, VH-40, 'WASD: Move  |  E: Harvest  |  F: Build Menu  |  Left Click: Place', {fontSize:'11px',fill:'#7A6545',fontFamily:'monospace'}).setOrigin(0.5);
+    this.add.text(cx, VH-20, 'Survive as long as you can. Boss every 10 waves. Permanent death.', {fontSize:'11px',fill:'#7A6545',fontFamily:'monospace'}).setOrigin(0.5);
+  }
+}
+
+// ============================================================
+// GAME SCENE
+// ============================================================
+class GameScene extends Phaser.Scene {
+  constructor(){ super('Game'); }
+
+  init(data){ this.isNewGame = data ? data.newGame !== false : true; }
+
+  create(){
+    // ---- State ----
+    this.seed = Math.floor(Math.random()*999999);
+    this.wave = 0;
+    this.isDay = true;
+    this.phaseTime = 0;
+    this.phaseLen = DAY_DURATION;
+    this.waveActive = false;
+    this.waveEnemiesLeft = 0;
+    this.alive = true;
+    this.hasRevive = false;
+    this.invincible = 0;
+    this.buildMode = null;   // {category, key}
+    this.selectedTab = 'towers';
+    this.craftOpen = false;
+    this.shakeTime = 0;
+    this.shakeAmt = 0;
+
+    this.inventory = { wood:50, stone:40, bone:0, coal:10, iron:5, crystal:0, gold:0 };
+    this.mapData = [];       // [y][x] = {terrain,resource,structure}
+    this.towers = [];        // {def,sprite,grid:{x,y},lastFire,hp,maxHp}
+    this.machines = [];      // {def,sprite,grid:{x,y},timer}
+    this.playerWalls = [];   // {sprite,grid:{x,y},hp}
+    this.enemies = [];       // enemy objects
+    this.projectiles = [];   // {sprite,vx,vy,def,towerDef,dist,maxDist}
+    this.drops = [];         // {sprite,res,time}
+
+    // ---- Layers ----
+    this.groundLayer = this.add.container(0,0).setDepth(-10);
+    this.structLayer  = this.add.container(0,0).setDepth(2);
+    this.enemyLayer   = this.add.container(0,0).setDepth(5);
+    this.projLayer    = this.add.container(0,0).setDepth(6);
+    this.lightLayer   = this.add.container(0,0).setDepth(7);
+    this.fxLayer      = this.add.container(0,0).setDepth(8);
+
+    this.generateMap();
+    this.createPlayer();
+    this.createNightOverlay();
+    this.createHUD();
+    this.createCraftingMenu();
+    this.setupInput();
+    this.setupCamera();
+
+    // Message text MUST be created before startDayPhase which calls showMsg
+    this.msgText = this.add.text(VW/2, 80, '', {fontSize:'20px',fill:'#EDE0C4',fontFamily:'monospace',stroke:'#1a1a1a',strokeThickness:3}).setOrigin(0.5).setDepth(50).setScrollFactor(0);
+
+    if(!this.isNewGame && this.loadSave()){ /* loaded */ }
+    else { this.startDayPhase(); }
+
+    this.showMsg('Wave 1 starts at nightfall — gather and build!', 4000);
+  }
+
+  // ---- MAP GENERATION ----
+  generateMap(){
+    // Init map data
+    for(let y=0;y<MH;y++){
+      this.mapData[y]=[];
+      for(let x=0;x<MW;x++) this.mapData[y][x]={terrain:'ground',resource:null,structure:null};
+    }
+
+    // Use RenderTexture for ground (performance)
+    this.groundRT = this.add.renderTexture(0,0,WW,WH).setDepth(-10);
+
+    const cx=Math.floor(MW/2), cy=Math.floor(MH/2);
+
+    for(let y=0;y<MH;y++){
+      for(let x=0;x<MW;x++){
+        const bnd = x===0||y===0||x===MW-1||y===MH-1;
+        if(bnd){ this.mapData[y][x].terrain='bwall'; this.groundRT.draw('bwall',x*TS,y*TS); continue; }
+        const nx=x/MW, ny=y/MH;
+        const n=fn(nx*4,ny*4,this.seed);
+        if(ny>0.62 && n>0.48){ this.mapData[y][x].terrain='deep'; this.groundRT.draw('deep',x*TS,y*TS); }
+        else { const v=Math.floor(vn(x,y,this.seed)*3); this.groundRT.draw('gnd'+v,x*TS,y*TS); }
+      }
+    }
+
+    // Resource nodes
+    const nodeTypes=[
+      {key:'tree',      res:'wood',    w:0.40, amt:[3,7]},
+      {key:'stonenode', res:'stone',   w:0.25, amt:[4,9]},
+      {key:'coalnode',  res:'coal',    w:0.15, amt:[2,5]},
+      {key:'ironnode',  res:'iron',    w:0.12, amt:[2,4]},
+      {key:'crystalnode',res:'crystal',w:0.08, amt:[1,3]},
+    ];
+
+    for(let y=1;y<MH-1;y++){
+      for(let x=1;x<MW-1;x++){
+        if(Math.abs(x-cx)<8&&Math.abs(y-cy)<8) continue; // clear center
+        const n=vn(x*7,y*7,this.seed+9999);
+        if(n<0.14){
+          const r=vn(x*13,y*13,this.seed+1111);
+          let cum=0;
+          for(const nt of nodeTypes){
+            cum+=nt.w;
+            if(r<cum){
+              const amt=nt.amt[0]+Math.floor(vn(x,y,this.seed)*(nt.amt[1]-nt.amt[0]+1));
+              const sp=this.add.sprite(x*TS+TS/2, y*TS+TS/2, nt.key).setDepth(2);
+              const node={type:nt.res, amt, maxAmt:amt, sprite:sp, tileX:x, tileY:y, respawnTimer:0};
+              this.mapData[y][x].resource=node;
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // ---- PLAYER ----
+  createPlayer(){
+    const cx=Math.floor(MW/2)*TS+TS/2;
+    const cy=Math.floor(MH/2)*TS+TS/2;
+    this.player = this.add.sprite(cx,cy,'player').setDepth(10).setScale(1);
+    this.physics.add.existing(this.player);
+    this.player.body.setSize(20,20).setCollideWorldBounds(true);
+    this.playerHP=100; this.playerMaxHP=100;
+    this.playerMP=100; this.playerMaxMP=100;
+    this.playerHPBars=null;
+    this.attackCooldown=0;
+    this.lastDmgTime=0;
+  }
+
+  createNightOverlay(){
+    this.nightOverlay = this.add.rectangle(VW/2, VH/2, VW, VH, 0x0F0A28, 0).setScrollFactor(0).setDepth(30);
+    this.dayLabel = null;
+  }
+
+  // ---- HUD ----
+  createHUD(){
+    const s=(t,x,y,sz='13px',col='#EDE0C4')=>this.add.text(x,y,t,{fontSize:sz,fill:col,fontFamily:'monospace',stroke:'#000',strokeThickness:2}).setScrollFactor(0).setDepth(50);
+
+    // Resource icons + text
+    const resKeys=['wood','stone','bone','coal','iron','crystal','gold'];
+    const resIcons=['ico_wood','ico_stone','ico_bone','ico_coal','ico_iron','ico_crystal','ico_gold'];
+    this.resTexts={};
+    resKeys.forEach((r,i)=>{
+      this.add.image(14, 20+i*22, resIcons[i]).setScrollFactor(0).setDepth(50).setScale(1.2);
+      this.resTexts[r]=s('0', 28, 14+i*22);
+    });
+
+    // Wave + clock (top right)
+    this.waveText = s('Wave 0', VW-120, 12, '18px', '#EDE0C4');
+    this.phaseText = s('DAY', VW-80, 38, '14px', '#FFB830');
+
+    // Day/night clock circle
+    this.clockGfx = this.add.graphics().setScrollFactor(0).setDepth(50);
+
+    // HP / Mana bars (below player, fixed to player position on camera)
+    this.hpBarBg  = this.add.rectangle(0,0,26,4,0x111111).setDepth(12).setOrigin(0,0);
+    this.hpBar    = this.add.rectangle(0,0,26,4,0x880000).setDepth(13).setOrigin(0,0);
+    this.mpBarBg  = this.add.rectangle(0,0,26,4,0x111111).setDepth(12).setOrigin(0,0);
+    this.mpBar    = this.add.rectangle(0,0,26,4,0x004488).setDepth(13).setOrigin(0,0);
+
+    // Build cursor
+    this.buildCursor = this.add.image(0,0,'cursor').setDepth(20).setVisible(false).setAlpha(0.8);
+    this.buildLabel  = this.add.text(0,0,'',{fontSize:'10px',fill:'#EDE0C4',fontFamily:'monospace',stroke:'#000',strokeThickness:2}).setDepth(21);
+  }
+
+  // ---- CRAFTING MENU ----
+  createCraftingMenu(){
+    const panelW=520, panelH=320;
+    const px=(VW-panelW)/2, py=VH-panelH-10;
+
+    this.craftPanel = this.add.container(0,0).setScrollFactor(0).setDepth(60).setVisible(false);
+    const bg=this.add.rectangle(px+panelW/2, py+panelH/2, panelW, panelH, 0x1E1610, 0.95).setStrokeStyle(2,0x5A4030);
+    this.craftPanel.add(bg);
+
+    // Tabs
+    const tabs=['towers','walls','machines','items'];
+    this.tabBtns={};
+    tabs.forEach((t,i)=>{
+      const tx=px+10+i*128;
+      const btn=this.add.rectangle(tx+60,py+16,118,28,0x3A2A18).setInteractive({useHandCursor:true}).setStrokeStyle(1,0x7A5A30);
+      const lbl=this.add.text(tx+60,py+16,t.toUpperCase(),{fontSize:'11px',fill:'#C8A96E',fontFamily:'monospace'}).setOrigin(0.5);
+      btn.on('pointerdown',()=>{ this.selectedTab=t; this.refreshCraftMenu(); });
+      btn.on('pointerover',()=>btn.setFillColor(0x5A3A28));
+      btn.on('pointerout',()=>btn.setFillColor(t===this.selectedTab?0x5A3A28:0x3A2A18));
+      this.craftPanel.add(btn); this.craftPanel.add(lbl);
+      this.tabBtns[t]={btn,lbl};
+    });
+
+    // Item grid area
+    this.craftItems=[];
+    this.craftPanel.add(this.add.text(px+12,py+36,'Select item to build:',{fontSize:'10px',fill:'#7A6545',fontFamily:'monospace'}));
+
+    // Grid slots (4 cols x 3 rows)
+    this.slotBtns=[];
+    for(let row=0;row<3;row++){
+      for(let col=0;col<4;col++){
+        const sx=px+12+col*126, sy=py+55+row*82;
+        const slot=this.add.rectangle(sx+58,sy+38,116,76,0x2A1E10).setInteractive({useHandCursor:true}).setStrokeStyle(1,0x5A3A20);
+        const img=this.add.image(sx+16,sy+20,'particle').setScale(2); // placeholder
+        const name=this.add.text(sx+34,sy+8,'',{fontSize:'9px',fill:'#EDE0C4',fontFamily:'monospace',wordWrap:{width:80}});
+        const cost=this.add.text(sx+4,sy+46,'',{fontSize:'8px',fill:'#C8A96E',fontFamily:'monospace',wordWrap:{width:110}});
+        const afford=this.add.text(sx+4,sy+62,'',{fontSize:'8px',fill:'#FF6060',fontFamily:'monospace'});
+        slot.setData({idx:row*4+col});
+        slot.on('pointerdown',()=>this.onCraftSlotClick(slot.getData('idx')));
+        slot.on('pointerover',()=>slot.setFillColor(0x3A2A18));
+        slot.on('pointerout',()=>slot.setFillColor(0x2A1E10));
+        this.craftPanel.add(slot); this.craftPanel.add(img); this.craftPanel.add(name); this.craftPanel.add(cost); this.craftPanel.add(afford);
+        this.slotBtns.push({slot,img,name,cost,afford,data:null});
+      }
+    }
+
+    // Close hint
+    this.craftPanel.add(this.add.text(px+panelW-90,py+6,'[F] Close',{fontSize:'10px',fill:'#7A5A40',fontFamily:'monospace'}));
+  }
+
+  refreshCraftMenu(){
+    let items=[];
+    if(this.selectedTab==='towers'){
+      items=Object.entries(TOWER_DEFS).map(([k,v])=>({key:k,def:v,cat:'tower'}));
+    } else if(this.selectedTab==='walls'){
+      items=[{key:'wall',def:{name:'Stone Wall',cost:{stone:4},tex:'pwall'},cat:'wall'}];
+    } else if(this.selectedTab==='machines'){
+      items=Object.entries(MACHINE_DEFS).map(([k,v])=>({key:k,def:v,cat:'machine'}));
+    } else if(this.selectedTab==='items'){
+      items=[{key:'revive',def:{name:'Revive Token',cost:{crystal:5,gold:10,bone:8}},cat:'item'}];
+    }
+
+    this.slotBtns.forEach((slot,i)=>{
+      const item=items[i];
+      slot.data=item||null;
+      if(item){
+        slot.img.setTexture(item.def.tex||'particle');
+        slot.name.setText(item.def.name);
+        const costStr=Object.entries(item.def.cost).map(([r,n])=>`${n} ${r}`).join(', ');
+        slot.cost.setText(costStr);
+        const canAfford=Object.entries(item.def.cost).every(([r,n])=>(this.inventory[r]||0)>=n);
+        slot.afford.setText(canAfford?'':'[not enough]');
+        slot.slot.setAlpha(1);
+      } else {
+        slot.img.setTexture('particle'); slot.name.setText(''); slot.cost.setText(''); slot.afford.setText('');
+        slot.slot.setAlpha(0.2);
+      }
+    });
+  }
+
+  onCraftSlotClick(idx){
+    const slot=this.slotBtns[idx];
+    if(!slot.data) return;
+    const item=slot.data;
+
+    if(item.cat==='item'){
+      // Craft item directly
+      if(!Object.entries(item.def.cost).every(([r,n])=>(this.inventory[r]||0)>=n)){ this.showMsg('Not enough resources!',2000); return; }
+      Object.entries(item.def.cost).forEach(([r,n])=>this.inventory[r]-=n);
+      if(item.key==='revive') this.hasRevive=true;
+      this.showMsg('Crafted: '+item.def.name,2000);
+      return;
+    }
+
+    // Enter build mode
+    const canAfford=Object.entries(item.def.cost).every(([r,n])=>(this.inventory[r]||0)>=n);
+    if(!canAfford){ this.showMsg('Not enough resources!',2000); return; }
+    this.buildMode={cat:item.cat, key:item.key, def:item.def};
+    this.craftOpen=false;
+    this.craftPanel.setVisible(false);
+    this.showMsg('Click to place '+item.def.name+' | Right-click to cancel',3000);
+  }
+
+  // ---- INPUT ----
+  setupInput(){
+    this.keys={
+      up: this.input.keyboard.addKey('W'),
+      down: this.input.keyboard.addKey('S'),
+      left: this.input.keyboard.addKey('A'),
+      right: this.input.keyboard.addKey('D'),
+      interact: this.input.keyboard.addKey('E'),
+      craft: this.input.keyboard.addKey('F'),
+    };
+    this.input.keyboard.on('keydown-F',()=>this.toggleCraftMenu());
+    this.input.on('pointerdown',(ptr)=>{
+      if(ptr.button===2){ this.buildMode=null; this.buildCursor.setVisible(false); this.buildLabel.setVisible(false); return; }
+      if(ptr.button===0 && this.buildMode){ this.tryPlace(ptr); }
+    });
+  }
+
+  toggleCraftMenu(){
+    this.craftOpen=!this.craftOpen;
+    this.craftPanel.setVisible(this.craftOpen);
+    if(this.craftOpen) this.refreshCraftMenu();
+  }
+
+  setupCamera(){
+    this.cameras.main.setBounds(0,0,WW,WH);
+    this.cameras.main.startFollow(this.player,true,0.08,0.08);
+    this.physics.world.setBounds(TS,TS,(MW-2)*TS,(MH-2)*TS);
+  }
+
+  // ---- PLACEMENT ----
+  tryPlace(ptr){
+    const wx=this.cameras.main.scrollX+ptr.x;
+    const wy=this.cameras.main.scrollY+ptr.y;
+    const tx=Math.floor(wx/TS), ty=Math.floor(wy/TS);
+    if(tx<1||ty<1||tx>=MW-1||ty>=MH-1) return;
+    const cell=this.mapData[ty][tx];
+    if(cell.terrain==='bwall'){ this.showMsg('Cannot build on boundary!',1000); return; }
+    if(cell.structure){ this.showMsg('Tile already occupied!',1000); return; }
+    if(cell.resource){ this.showMsg('Clear resource first!',1000); return; }
+
+    const {cat,key,def}=this.buildMode;
+    if(!Object.entries(def.cost).every(([r,n])=>(this.inventory[r]||0)>=n)){ this.showMsg('Not enough resources!',1500); return; }
+    Object.entries(def.cost).forEach(([r,n])=>this.inventory[r]-=n);
+
+    if(cat==='tower'){
+      const sp=this.add.sprite(tx*TS+TS/2, ty*TS+TS/2, def.tex||'tw_arrow').setDepth(3);
+      const towerObj={def, key, sprite:sp, grid:{x:tx,y:ty}, lastFire:0, hp:100, maxHp:100, active:true};
+      cell.structure=towerObj;
+      this.towers.push(towerObj);
+      this.spawnParticles(sp.x,sp.y,0xC8A96E,6);
+    } else if(cat==='wall'){
+      const sp=this.add.sprite(tx*TS+TS/2, ty*TS+TS/2, 'pwall').setDepth(3);
+      const wallObj={sprite:sp, grid:{x:tx,y:ty}, hp:80, maxHp:80};
+      cell.structure=wallObj;
+      this.playerWalls.push(wallObj);
+    } else if(cat==='machine'){
+      const sp=this.add.sprite(tx*TS+TS/2, ty*TS+TS/2, def.tex||'mc_wood').setDepth(3);
+      const machObj={def, key, sprite:sp, grid:{x:tx,y:ty}, timer:0};
+      cell.structure=machObj;
+      this.machines.push(machObj);
+    }
+    this.showMsg('Placed '+def.name,1000);
+  }
+
+  // ---- WAVE SYSTEM ----
+  startDayPhase(){
+    this.isDay=true; this.phaseTime=0; this.phaseLen=DAY_DURATION;
+    this.showMsg(`Day — Wave ${this.wave} complete! Build and gather.`,4000);
+    this.updateTowerActiveState();
+    // Auto-save
+    this.saveGame();
+  }
+
+  startNightPhase(){
+    this.isDay=false; this.phaseTime=0; this.phaseLen=NIGHT_DURATION;
+    this.wave++;
+    this.updateTowerActiveState();
+    this.time.delayedCall(2000,()=>{ this.spawnWave(); });
+    this.showMsg(`Night falls — Wave ${this.wave} incoming!`,3000);
+    this.screenShake(300,4);
+  }
+
+  spawnWave(){
+    const count=BASE_WAVE_SIZE+(this.wave-1);
+    const isBossWave=this.wave%10===0 && this.wave>0;
+    this.waveActive=true;
+    this.waveEnemiesLeft=count+(isBossWave?1:0);
+
+    // Determine available enemy types
+    const day_types=['shambler','skitterer','ironback','burrower','looter','shamanbeast'];
+    const night_types=['shade','nightcrawler','voidbat'];
+    const pool=this.isDay?day_types:[...day_types,...night_types];
+
+    for(let i=0;i<count;i++){
+      const delay=i*300+Phaser.Math.Between(0,400);
+      this.time.delayedCall(delay,()=>{ if(!this.alive) return; this.spawnEnemy(pool[Math.floor(Math.random()*pool.length)]); });
+    }
+
+    if(isBossWave){
+      const bossCycle=Math.floor((this.wave/10)-1)%3;
+      const bossKey=['siege_hulk','pale_mother','ironclad'][bossCycle];
+      this.time.delayedCall(count*300+2000,()=>{ if(!this.alive) return; this.spawnEnemy(bossKey); this.showMsg('BOSS INCOMING!',3000); this.screenShake(500,8); });
+    }
+  }
+
+  spawnEnemy(typeKey){
+    const def=ENEMY_DEFS[typeKey];
+    if(!def) return;
+    // Pick random edge
+    const edge=Math.floor(Math.random()*4);
+    let ex,ey;
+    if(edge===0){ ex=Phaser.Math.Between(2,MW-3)*TS+TS/2; ey=TS+TS/2; }
+    else if(edge===1){ ex=(MW-2)*TS+TS/2; ey=Phaser.Math.Between(2,MH-3)*TS+TS/2; }
+    else if(edge===2){ ex=Phaser.Math.Between(2,MW-3)*TS+TS/2; ey=(MH-2)*TS+TS/2; }
+    else { ex=TS+TS/2; ey=Phaser.Math.Between(2,MH-3)*TS+TS/2; }
+
+    const texKey='e_'+typeKey;
+    const sz=def.sz||14;
+    const sp=this.add.sprite(ex,ey,texKey).setDepth(9).setScale(def.boss?1.5:1);
+    this.physics.add.existing(sp);
+    sp.body.setSize(sz,sz);
+
+    // Special alpha for shade
+    if(def.invis) sp.setAlpha(0.3);
+
+    // HP bar
+    const hpBg=this.add.rectangle(ex,ey-sz-6,sz*2,3,0x220000).setDepth(9);
+    const hpFill=this.add.rectangle(ex-sz,ey-sz-6,sz*2,3,0xCC2200).setOrigin(0,0.5).setDepth(10);
+
+    const enemy={
+      def, key:typeKey, sprite:sp, hp:def.hp, maxHp:def.hp,
+      slow:1, slowTimer:0, dot:0, dotTimer:0,
+      hpBg, hpFill,
+      burrowTimer:def.burrow?Phaser.Math.Between(3000,6000):0,
+      burrowed:false,
+      arcAngle:0,
+      spawnTimer:def.spawns?Phaser.Math.Between(5000,10000):0,
+      alive:true,
+    };
+    this.enemies.push(enemy);
+  }
+
+  // ---- UPDATE ----
+  update(time, delta){
+    if(!this.alive) return;
+
+    this.updatePhaseTimer(delta);
+    this.updatePlayer(delta, time);
+    this.updateEnemies(delta, time);
+    this.updateTowers(time, delta);
+    this.updateProjectiles(delta);
+    this.updateMachines(delta);
+    this.updateDrops(delta);
+    this.updateBuildCursor();
+    this.updateHUD();
+    this.updateScreenShake(delta);
+    if(this.invincible>0) this.invincible-=delta;
+    this.attackCooldown=Math.max(0,this.attackCooldown-delta);
+  }
+
+  updatePhaseTimer(delta){
+    this.phaseTime+=delta;
+    if(this.phaseTime>=this.phaseLen){
+      if(this.isDay) this.startNightPhase();
+      else this.startDayPhase();
+    }
+  }
+
+  updatePlayer(delta, time){
+    const body=this.player.body;
+    let vx=0,vy=0;
+    if(this.keys.left.isDown) vx=-PLAYER_SPEED;
+    if(this.keys.right.isDown) vx=PLAYER_SPEED;
+    if(this.keys.up.isDown) vy=-PLAYER_SPEED;
+    if(this.keys.down.isDown) vy=PLAYER_SPEED;
+    if(vx!==0&&vy!==0){ vx*=0.707; vy*=0.707; }
+    body.setVelocity(vx,vy);
+
+    // Interact
+    if(Phaser.Input.Keyboard.JustDown(this.keys.interact)){
+      this.tryInteract();
+    }
+
+    // HP/mana bars follow player
+    const px=this.player.x, py=this.player.y;
+    this.hpBarBg.setPosition(px-13, py+18);
+    this.hpBar.setPosition(px-13, py+18);
+    this.mpBarBg.setPosition(px-13, py+23);
+    this.mpBar.setPosition(px-13, py+23);
+    const hpPct=Math.max(0,this.playerHP/this.playerMaxHP);
+    const mpPct=Math.max(0,this.playerMP/this.playerMaxMP);
+    this.hpBar.setSize(26*hpPct, 4);
+    this.mpBar.setSize(26*mpPct, 4);
+    if(hpPct<0.25) this.hpBar.setAlpha(0.5+Math.sin(time*0.008)*0.5);
+    else this.hpBar.setAlpha(1);
+
+    // Mana regen
+    this.playerMP=Math.min(this.playerMaxMP, this.playerMP+delta*0.01);
+  }
+
+  tryInteract(){
+    const px=this.player.x, py=this.player.y;
+    // Find nearest resource
+    let nearestNode=null, nearestD=INTERACT_RANGE;
+    for(let y=0;y<MH;y++){
+      for(let x=0;x<MW;x++){
+        const cell=this.mapData[y][x];
+        if(cell.resource && cell.resource.amt>0){
+          const d=pdist({x:x*TS+TS/2,y:y*TS+TS/2},{x:px,y:py});
+          if(d<nearestD){ nearestD=d; nearestNode=cell.resource; }
+        }
+      }
+    }
+    if(nearestNode){
+      const gain=Math.min(nearestNode.amt, Phaser.Math.Between(2,4));
+      nearestNode.amt-=gain;
+      this.inventory[nearestNode.type]=(this.inventory[nearestNode.type]||0)+gain;
+      this.spawnParticles(nearestNode.sprite.x,nearestNode.sprite.y,0xC8A96E,4);
+      if(nearestNode.amt<=0){
+        nearestNode.sprite.setVisible(false);
+        if(nearestNode.type==='wood'){
+          // Trees respawn
+          nearestNode.respawnTimer=30000;
+        }
+      }
+      this.showMsg('+'+gain+' '+nearestNode.type,800);
+    }
+  }
+
+  updateEnemies(delta, time){
+    const px=this.player.x, py=this.player.y;
+    const toRemove=[];
+
+    for(const enemy of this.enemies){
+      if(!enemy.alive) continue;
+      const sp=enemy.sprite;
+
+      // Slow timer
+      if(enemy.slowTimer>0){ enemy.slowTimer-=delta; if(enemy.slowTimer<=0) enemy.slow=1; }
+      // DoT
+      if(enemy.dot>0){ enemy.dotTimer-=delta; if(enemy.dotTimer<=0){ enemy.hp-=enemy.dot; enemy.dotTimer=1000; } }
+
+      // Burrower behavior
+      if(enemy.def.burrow){
+        enemy.burrowTimer-=delta;
+        if(enemy.burrowTimer<=0){
+          enemy.burrowed=!enemy.burrowed;
+          sp.setAlpha(enemy.burrowed?0.1:1);
+          enemy.burrowTimer=enemy.burrowed?Phaser.Math.Between(2000,4000):Phaser.Math.Between(4000,8000);
+          if(!enemy.burrowed) this.spawnParticles(sp.x,sp.y,0x8B6914,5);
+        }
+        if(enemy.burrowed){ sp.body.setVelocity(0,0); continue; }
+      }
+
+      // Find target
+      let tx=px, ty=py;
+      if(enemy.def.machines && this.machines.length>0){
+        let nearM=null, nearD=Infinity;
+        for(const m of this.machines){ const d=pdist(sp,m.sprite); if(d<nearD){ nearD=d; nearM=m; } }
+        if(nearM){ tx=nearM.sprite.x; ty=nearM.sprite.y; }
+      }
+
+      // Arc movement for voidbat
+      if(enemy.def.arc){
+        enemy.arcAngle=(enemy.arcAngle||0)+delta*0.002;
+        const dx=tx-sp.x, dy=ty-sp.y, len=Math.sqrt(dx*dx+dy*dy);
+        const perpX=-dy/len, perpY=dx/len;
+        const spd=enemy.def.spd*enemy.slow;
+        sp.body.setVelocity((dx/len+perpX*Math.sin(enemy.arcAngle))*spd, (dy/len+perpY*Math.sin(enemy.arcAngle))*spd);
+      } else {
+        // Steer toward target
+        const dx=tx-sp.x, dy=ty-sp.y, len=Math.sqrt(dx*dx+dy*dy)||1;
+        const spd=enemy.def.spd*enemy.slow;
+        sp.body.setVelocity(dx/len*spd, dy/len*spd);
+      }
+
+      // Separation
+      for(const other of this.enemies){
+        if(other===enemy||!other.alive) continue;
+        const dx=sp.x-other.sprite.x, dy=sp.y-other.sprite.y, d=Math.sqrt(dx*dx+dy*dy);
+        if(d<20&&d>0){ sp.x+=dx/d*1.2; sp.y+=dy/d*1.2; }
+      }
+
+      // Walls collision
+      for(const wall of this.playerWalls){
+        if(!wall.hp) continue;
+        const wd=pdist(sp,wall.sprite);
+        if(wd<28){
+          wall.hp-=enemy.def.dmg*delta*0.001;
+          if(wall.hp<=0){ wall.sprite.setAlpha(0.3); }
+          // Push enemy back
+          const dx=sp.x-wall.sprite.x, dy=sp.y-wall.sprite.y, dl=Math.sqrt(dx*dx+dy*dy)||1;
+          sp.body.setVelocity(dx/dl*30, dy/dl*30);
+        }
+      }
+
+      // Attack player
+      const distToPlayer=pdist(sp,{x:px,y:py});
+      if(distToPlayer<22 && this.invincible<=0 && time-this.lastDmgTime>800){
+        this.lastDmgTime=time;
+        this.playerHP=Math.max(0, this.playerHP-enemy.def.dmg);
+        this.screenShake(100,3);
+        this.player.setTint(0xFF4444);
+        this.time.delayedCall(120,()=>this.player.clearTint());
+        if(this.playerHP<=0) this.onPlayerDeath();
+      }
+
+      // Healer (shamanbeast)
+      if(enemy.def.heals){
+        for(const other of this.enemies){
+          if(other===enemy||!other.alive) continue;
+          if(pdist(sp,other.sprite)<80) other.hp=Math.min(other.maxHp, other.hp+delta*0.02);
+        }
+      }
+
+      // Boss spawner
+      if(enemy.def.spawns && enemy.spawnTimer>0){
+        enemy.spawnTimer-=delta;
+        if(enemy.spawnTimer<=0){
+          enemy.spawnTimer=Phaser.Math.Between(5000,10000);
+          this.spawnEnemy(enemy.def.spawns);
+          this.waveEnemiesLeft++;
+        }
+      }
+
+      // Update HP bar
+      const hpPct=Math.max(0,enemy.hp/enemy.maxHp);
+      const bw=(enemy.def.sz||14)*2;
+      enemy.hpBg.setPosition(sp.x, sp.y-(enemy.def.sz||14)-6);
+      enemy.hpFill.setPosition(sp.x-bw/2, sp.y-(enemy.def.sz||14)-6);
+      enemy.hpFill.setSize(bw*hpPct,3);
+      enemy.hpBg.setSize(bw,3);
+
+      // Death
+      if(enemy.hp<=0){
+        // Handle nightcrawler split
+        if(enemy.def.splits && !enemy.hasSplit){
+          enemy.hasSplit=true;
+          for(let i=0;i<2;i++){
+            const ne=Object.assign({},enemy.def,{hp:enemy.def.hp*0.5,splits:false,sz:Math.floor(enemy.def.sz*0.7)});
+            const childDef={...enemy.def, hp:enemy.def.hp*0.5, splits:false, sz:Math.floor((enemy.def.sz||14)*0.7)};
+            const offset=i===0?-20:20;
+            this.spawnEnemyAt(enemy.key, sp.x+offset, sp.y, childDef);
+            this.waveEnemiesLeft++;
+          }
+        }
+        // Drop resources
+        if(enemy.def.drop){
+          Object.entries(enemy.def.drop).forEach(([r,n])=>{
+            for(let i=0;i<n;i++){
+              const dx=Phaser.Math.Between(-20,20), dy=Phaser.Math.Between(-20,20);
+              const drpSp=this.add.rectangle(sp.x+dx,sp.y+dy,6,6,r==='gold'?0xD4A017:r==='crystal'?0x5BBCB0:0xEDE0C4).setDepth(4);
+              this.drops.push({sprite:drpSp, res:r, time:30000});
+            }
+            this.inventory[r]=(this.inventory[r]||0)+n;
+          });
+        }
+        this.spawnParticles(sp.x,sp.y,enemy.def.col,enemy.def.boss?12:5);
+        sp.destroy(); enemy.hpBg.destroy(); enemy.hpFill.destroy();
+        enemy.alive=false;
+        toRemove.push(enemy);
+        this.waveEnemiesLeft--;
+        if(this.waveEnemiesLeft<=0 && this.waveActive && !this.isDay){
+          this.waveActive=false;
+        }
+      }
+    }
+    this.enemies=this.enemies.filter(e=>e.alive);
+  }
+
+  spawnEnemyAt(typeKey, x, y, overrideDef){
+    const def=overrideDef||ENEMY_DEFS[typeKey];
+    if(!def) return;
+    const sz=def.sz||14;
+    const sp=this.add.sprite(x,y,'e_'+typeKey).setDepth(9).setScale(def.boss?1.5:1);
+    this.physics.add.existing(sp);
+    sp.body.setSize(sz,sz);
+    const hpBg=this.add.rectangle(x,y-sz-6,sz*2,3,0x220000).setDepth(9);
+    const hpFill=this.add.rectangle(x-sz,y-sz-6,sz*2,3,0xCC2200).setOrigin(0,0.5).setDepth(10);
+    const enemy={ def, key:typeKey, sprite:sp, hp:def.hp, maxHp:def.hp, slow:1, slowTimer:0, dot:0, dotTimer:0, hpBg, hpFill, burrowTimer:0, burrowed:false, arcAngle:0, spawnTimer:0, alive:true, hasSplit:false };
+    this.enemies.push(enemy);
+  }
+
+  // ---- TOWERS ----
+  updateTowerActiveState(){
+    for(const tower of this.towers){
+      const active=this.isDay?tower.def.dayOn:tower.def.nightOn;
+      tower.sprite.setAlpha(active?1:0.4);
+      tower.active=active;
+    }
+  }
+
+  updateTowers(time, delta){
+    for(const tower of this.towers){
+      if(!tower.active) continue;
+      if(time-tower.lastFire<tower.def.rate) continue;
+
+      // Find nearest enemy in range
+      let target=null, nearestD=tower.def.range;
+      for(const enemy of this.enemies){
+        if(!enemy.alive) continue;
+        const d=pdist(tower.sprite,enemy.sprite);
+        if(d<nearestD){ nearestD=d; target=enemy; }
+      }
+      if(!target) continue;
+
+      tower.lastFire=time;
+      this.fireProjectile(tower, target);
+    }
+
+    // Bonefire light effect (night only)
+    for(const tower of this.towers){
+      if(tower.key==='bonefire' && !this.isDay && tower.active){
+        // Already handled via light overlay
+      }
+    }
+  }
+
+  fireProjectile(tower, target){
+    const dx=target.sprite.x-tower.sprite.x;
+    const dy=target.sprite.y-tower.sprite.y;
+    const len=Math.sqrt(dx*dx+dy*dy)||1;
+    const speed=300;
+    let projTex='proj_arrow';
+    if(tower.key==='flame'||tower.key==='cannon') projTex='proj_flame';
+    else if(tower.key==='frost') projTex='proj_ice';
+    else if(tower.key==='voltspire') projTex='proj_volt';
+    else if(tower.key==='poison') projTex='proj_poison';
+
+    const sp=this.add.sprite(tower.sprite.x,tower.sprite.y,projTex).setDepth(15);
+    this.projectiles.push({
+      sprite:sp, vx:dx/len*speed, vy:dy/len*speed,
+      towerDef:tower.def, towerKey:tower.key,
+      maxDist:tower.def.range*1.5, dist:0,
+      target, aoe:tower.def.aoe||0,
+    });
+  }
+
+  updateProjectiles(delta){
+    const toRemove=[];
+    const dt=delta/1000;
+    for(const proj of this.projectiles){
+      proj.sprite.x+=proj.vx*dt;
+      proj.sprite.y+=proj.vy*dt;
+      proj.dist+=Math.sqrt(proj.vx*proj.vx+proj.vy*proj.vy)*dt;
+
+      let hit=false;
+      if(proj.aoe){
+        // AoE — hit when close to original target
+        if(!proj.target.alive||pdist(proj.sprite,proj.target.sprite)<20){
+          // Deal AoE damage
+          for(const enemy of this.enemies){
+            if(!enemy.alive) continue;
+            const d=pdist(proj.sprite,enemy.sprite);
+            if(d<proj.aoe){
+              this.applyProjectileHit(proj, enemy);
+            }
+          }
+          this.spawnParticles(proj.sprite.x,proj.sprite.y,proj.towerKey==='frost'?0x5BBCB0:0xFF6400,8);
+          hit=true;
+        }
+      } else {
+        // Single target
+        for(const enemy of this.enemies){
+          if(!enemy.alive) continue;
+          if(pdist(proj.sprite,enemy.sprite)<14){
+            this.applyProjectileHit(proj, enemy);
+            hit=true;
+            // Chain lightning
+            if(proj.towerDef.chain){
+              let remaining=proj.towerDef.chain;
+              const chained=new Set([enemy]);
+              let last=enemy;
+              while(remaining-->0){
+                let next=null, nd=100;
+                for(const e2 of this.enemies){
+                  if(!e2.alive||chained.has(e2)) continue;
+                  const d=pdist(last.sprite,e2.sprite);
+                  if(d<nd){ nd=d; next=e2; }
+                }
+                if(next){ chained.add(next); next.hp-=proj.towerDef.dmg*0.5; last=next; }
+                else break;
+              }
+            }
+            break;
+          }
+        }
+      }
+
+      if(hit||proj.dist>proj.maxDist){
+        proj.sprite.destroy();
+        toRemove.push(proj);
+      }
+    }
+    this.projectiles=this.projectiles.filter(p=>!toRemove.includes(p));
+  }
+
+  applyProjectileHit(proj, enemy){
+    let dmg=proj.towerDef.dmg;
+    if(enemy.def.armor) dmg=Math.max(1,dmg-enemy.def.armor);
+    enemy.hp-=dmg;
+    enemy.sprite.setTint(0xFFFFFF);
+    this.time.delayedCall(60,()=>{ if(enemy.sprite.active) enemy.sprite.clearTint(); });
+    if(proj.towerDef.slow){ enemy.slow=proj.towerDef.slow; enemy.slowTimer=2000; }
+    if(proj.towerDef.dot){ enemy.dot=proj.towerDef.dot; enemy.dotTimer=1000; }
+  }
+
+  // ---- MACHINES ----
+  updateMachines(delta){
+    for(const m of this.machines){
+      m.timer+=delta;
+      if(m.timer>=m.def.interval){
+        m.timer=0;
+        Object.entries(m.def.produces).forEach(([r,n])=>{ this.inventory[r]=(this.inventory[r]||0)+n; });
+      }
+    }
+  }
+
+  // ---- DROPS ----
+  updateDrops(delta){
+    const toRemove=[];
+    for(const drop of this.drops){
+      drop.time-=delta;
+      if(drop.time<=0||pdist(drop.sprite,this.player)<24){
+        if(pdist(drop.sprite,this.player)<24){
+          this.inventory[drop.res]=(this.inventory[drop.res]||0)+1;
+        }
+        drop.sprite.destroy();
+        toRemove.push(drop);
+      }
+    }
+    this.drops=this.drops.filter(d=>!toRemove.includes(d));
+  }
+
+  // ---- BUILD CURSOR ----
+  updateBuildCursor(){
+    if(!this.buildMode){ this.buildCursor.setVisible(false); this.buildLabel.setVisible(false); return; }
+    const ptr=this.input.activePointer;
+    const wx=this.cameras.main.scrollX+ptr.x;
+    const wy=this.cameras.main.scrollY+ptr.y;
+    const tx=Math.floor(wx/TS), ty=Math.floor(wy/TS);
+    const cx2=tx*TS+TS/2, cy2=ty*TS+TS/2;
+    this.buildCursor.setPosition(cx2,cy2).setVisible(true);
+    const cell=tx>=0&&ty>=0&&tx<MW&&ty<MH?this.mapData[ty][tx]:null;
+    const canPlace=cell&&cell.terrain!=='bwall'&&!cell.structure&&!cell.resource;
+    this.buildCursor.setTexture(canPlace?'cursor':'cursor_red');
+    this.buildLabel.setPosition(cx2+18,cy2-24).setText(this.buildMode.def.name).setVisible(true).setScrollFactor(0).setScrollFactor(1);
+  }
+
+  // ---- NIGHT OVERLAY ----
+  updateNightOverlay(){
+    const pct=this.phaseTime/this.phaseLen;
+    if(!this.isDay){
+      this.nightOverlay.setAlpha(Math.min(0.55,pct*0.55));
+    } else {
+      this.nightOverlay.setAlpha(Math.max(0,(1-pct)*0.55));
+    }
+  }
+
+  // ---- HUD ----
+  updateHUD(){
+    // Resources
+    const res=['wood','stone','bone','coal','iron','crystal','gold'];
+    res.forEach(r=>{ this.resTexts[r].setText(String(this.inventory[r]||0)); });
+
+    // Wave + clock
+    this.waveText.setText('Wave '+this.wave);
+    this.phaseText.setText(this.isDay?'DAY':'NIGHT').setStyle({fill:this.isDay?'#FFB830':'#8899FF'});
+
+    // Clock circle
+    this.clockGfx.clear();
+    const cr=18, ccx=VW-50, ccy=50;
+    const pct=this.phaseTime/this.phaseLen;
+    this.clockGfx.fillStyle(this.isDay?0x222222:0x222222);
+    this.clockGfx.fillCircle(ccx,ccy,cr);
+    this.clockGfx.fillStyle(this.isDay?0xFFB830:0x4455BB);
+    this.clockGfx.slice(ccx,ccy,cr,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-pct),false);
+    this.clockGfx.fillPath();
+    this.clockGfx.lineStyle(2,0x7A6545);
+    this.clockGfx.strokeCircle(ccx,ccy,cr);
+
+    // Night overlay
+    this.updateNightOverlay();
+  }
+
+  // ---- PARTICLES ----
+  spawnParticles(x,y,color,count){
+    for(let i=0;i<count;i++){
+      const angle=Math.random()*Math.PI*2;
+      const speed=Phaser.Math.Between(30,80);
+      const sp=this.add.rectangle(x,y,4,4,color).setDepth(20);
+      const vx=Math.cos(angle)*speed, vy=Math.sin(angle)*speed;
+      let life=0;
+      const t=this.time.addEvent({delay:16, repeat:30, callback:()=>{
+        life+=16;
+        sp.x+=vx*0.016; sp.y+=vy*0.016; sp.setAlpha(1-life/500);
+        if(life>=480){ sp.destroy(); t.remove(); }
+      }});
+    }
+  }
+
+  // ---- SCREEN SHAKE ----
+  screenShake(dur, amt){
+    this.shakeTime=dur; this.shakeAmt=amt;
+    this.cameras.main.shake(dur,amt*0.001);
+  }
+  updateScreenShake(delta){
+    if(this.shakeTime>0) this.shakeTime-=delta;
+  }
+
+  // ---- MESSAGES ----
+  showMsg(txt, dur){
+    if(!this.msgText) return;
+    this.msgText.setText(txt).setAlpha(1);
+    if(this._msgTimer) this._msgTimer.remove();
+    this._msgTimer=this.time.delayedCall(dur-400,()=>{
+      this.tweens.add({targets:this.msgText, alpha:0, duration:400});
+    });
+  }
+
+  // ---- PLAYER DEATH ----
+  onPlayerDeath(){
+    if(this.hasRevive){
+      this.hasRevive=false;
+      this.playerHP=this.playerMaxHP;
+      this.invincible=3000;
+      this.cameras.main.flash(200,255,255,255);
+      this.showMsg('Revive Token used!',3000);
+      return;
+    }
+    this.alive=false;
+    this.time.delayedCall(500,()=>{ this.scene.start('GameOver',{wave:this.wave}); });
+  }
+
+  // ---- SAVE / LOAD ----
+  saveGame(){
+    const save={
+      seed:this.seed, wave:this.wave, isDay:this.isDay,
+      hp:this.playerHP, mp:this.playerMP,
+      inventory:{...this.inventory},
+      hasRevive:this.hasRevive,
+      towers:this.towers.map(t=>({key:t.key,gx:t.grid.x,gy:t.grid.y,hp:t.hp})),
+      walls:this.playerWalls.map(w=>({gx:w.grid.x,gy:w.grid.y,hp:w.hp})),
+      machines:this.machines.map(m=>({key:m.key,gx:m.grid.x,gy:m.grid.y})),
+      px:this.player.x, py:this.player.y,
+    };
+    localStorage.setItem('dungeonkeep_save',JSON.stringify(save));
+  }
+
+  loadSave(){
+    const raw=localStorage.getItem('dungeonkeep_save');
+    if(!raw) return false;
+    try {
+      const s=JSON.parse(raw);
+      this.seed=s.seed; this.wave=s.wave; this.isDay=s.isDay;
+      this.playerHP=s.hp; this.playerMP=s.mp;
+      this.inventory=s.inventory; this.hasRevive=s.hasRevive||false;
+      this.player.x=s.px||this.player.x; this.player.y=s.py||this.player.y;
+      // Restore structures
+      (s.towers||[]).forEach(t=>{
+        const def=TOWER_DEFS[t.key]; if(!def) return;
+        const sp=this.add.sprite(t.gx*TS+TS/2,t.gy*TS+TS/2,def.tex||'tw_arrow').setDepth(3);
+        const tower={def,key:t.key,sprite:sp,grid:{x:t.gx,y:t.gy},lastFire:0,hp:t.hp,maxHp:100,active:true};
+        this.mapData[t.gy][t.gx].structure=tower;
+        this.towers.push(tower);
+      });
+      (s.walls||[]).forEach(w=>{
+        const sp=this.add.sprite(w.gx*TS+TS/2,w.gy*TS+TS/2,'pwall').setDepth(3);
+        const wall={sprite:sp,grid:{x:w.gx,y:w.gy},hp:w.hp,maxHp:80};
+        this.mapData[w.gy][w.gx].structure=wall;
+        this.playerWalls.push(wall);
+      });
+      (s.machines||[]).forEach(m=>{
+        const def=MACHINE_DEFS[m.key]; if(!def) return;
+        const sp=this.add.sprite(m.gx*TS+TS/2,m.gy*TS+TS/2,def.tex||'mc_wood').setDepth(3);
+        const mach={def,key:m.key,sprite:sp,grid:{x:m.gx,y:m.gy},timer:0};
+        this.mapData[m.gy][m.gx].structure=mach;
+        this.machines.push(mach);
+      });
+      this.updateTowerActiveState();
+      if(this.isDay) this.startDayPhase();
+      else { this.phaseTime=0; this.phaseLen=NIGHT_DURATION; this.time.delayedCall(3000,()=>this.spawnWave()); }
+      return true;
+    } catch(e){ return false; }
+  }
+}
+
+// ============================================================
+// GAME OVER SCENE
+// ============================================================
+class GameOverScene extends Phaser.Scene {
+  constructor(){ super('GameOver'); }
+  init(data){ this.waveReached=data?data.wave:0; }
+  create(){
+    const cx=VW/2, cy=VH/2;
+    this.add.rectangle(cx,cy,VW,VH,0x0a0808);
+    this.cameras.main.fade(500,10,8,8);
+
+    this.add.text(cx,cy-140,'YOU FELL',{fontSize:'52px',fill:'#CC2200',fontFamily:'monospace',stroke:'#1a0000',strokeThickness:6}).setOrigin(0.5);
+    this.add.text(cx,cy-70,`Wave ${this.waveReached} — The dungeon claimed you.`,{fontSize:'18px',fill:'#EDE0C4',fontFamily:'monospace'}).setOrigin(0.5);
+
+    // High score
+    const best=parseInt(localStorage.getItem('dungeonkeep_best')||'0');
+    if(this.waveReached>best) localStorage.setItem('dungeonkeep_best',String(this.waveReached));
+    const newBest=parseInt(localStorage.getItem('dungeonkeep_best')||'0');
+    this.add.text(cx,cy-20,`Best: Wave ${newBest}${this.waveReached>=newBest&&this.waveReached>0?' ★ NEW RECORD!':''}`,{fontSize:'15px',fill:'#D4A017',fontFamily:'monospace'}).setOrigin(0.5);
+
+    const bStyle={fontSize:'20px',fill:'#EDE0C4',fontFamily:'monospace',backgroundColor:'#3D2B1F',padding:{x:18,y:9}};
+    const tryBtn=this.add.text(cx-110,cy+60,'TRY AGAIN',bStyle).setOrigin(0.5).setInteractive({useHandCursor:true});
+    tryBtn.on('pointerover',()=>tryBtn.setStyle({fill:'#FFE090'}));
+    tryBtn.on('pointerout',()=>tryBtn.setStyle({fill:'#EDE0C4'}));
+    tryBtn.on('pointerdown',()=>{ localStorage.removeItem('dungeonkeep_save'); this.scene.start('Game',{newGame:true}); });
+
+    const menuBtn=this.add.text(cx+110,cy+60,'MAIN MENU',bStyle).setOrigin(0.5).setInteractive({useHandCursor:true});
+    menuBtn.on('pointerover',()=>menuBtn.setStyle({fill:'#FFE090'}));
+    menuBtn.on('pointerout',()=>menuBtn.setStyle({fill:'#EDE0C4'}));
+    menuBtn.on('pointerdown',()=>{ localStorage.removeItem('dungeonkeep_save'); this.scene.start('Menu'); });
+
+    this.add.text(cx,cy+130,'CONTROLS',{fontSize:'13px',fill:'#7A6545',fontFamily:'monospace'}).setOrigin(0.5);
+    this.add.text(cx,cy+152,'WASD: Move  |  E: Harvest resource  |  F: Build/Craft menu',{fontSize:'11px',fill:'#5A4535',fontFamily:'monospace'}).setOrigin(0.5);
+    this.add.text(cx,cy+172,'Left click: Place structure  |  Right click: Cancel build  |  Tab selects tower type',{fontSize:'11px',fill:'#5A4535',fontFamily:'monospace'}).setOrigin(0.5);
+  }
+}
+
+// ============================================================
+// PHASER CONFIG
+// ============================================================
+const config = {
+  type: Phaser.AUTO,
+  width: VW,
+  height: VH,
+  backgroundColor: '#0a0808',
+  physics:{
+    default:'arcade',
+    arcade:{ gravity:{y:0}, debug:false },
+  },
+  scene:[BootScene,MenuScene,GameScene,GameOverScene],
+};
+
+new Phaser.Game(config);
+</script>
+</body>
+</html>

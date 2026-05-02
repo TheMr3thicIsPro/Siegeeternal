@@ -1,0 +1,157 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  /* iOS: extend into notch/home-indicator zones */
+  background: #0a0808;
+}
+
+html, body {
+  width: 100%;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #0a0808;
+  /* push content inside safe area on devices with notch/home indicator */
+  padding-top:    env(safe-area-inset-top,    0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left:   env(safe-area-inset-left,   0px);
+  padding-right:  env(safe-area-inset-right,  0px);
+}
+
+#game-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#game-container canvas {
+  display: block;
+  max-width: 100vw;
+  max-height: 100dvh;
+  image-rendering: pixelated;
+}
+
+/* ── Mobile letterbox overlay zones ──────────────────────────
+   Positioned by MobileOverlay.js after it measures the canvas.
+   Both are hidden (display:none) on desktop / landscape where
+   there is no meaningful letterbox space.
+──────────────────────────────────────────────────────────── */
+.dk-overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: #0a0808;
+  display: none;            /* shown by JS when letterbox ≥ 32px */
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;     /* taps pass through to canvas */
+  overflow: hidden;
+  padding: 0 max(env(safe-area-inset-left, 8px), 8px);
+}
+
+.dk-overlay-top {
+  top: 0;
+  justify-content: flex-end;  /* content hugs the canvas edge */
+  padding-top:    max(env(safe-area-inset-top, 4px), 4px);
+  padding-bottom: 6px;
+  gap: 2px;
+}
+
+.dk-overlay-bot {
+  bottom: 0;
+  justify-content: flex-start;
+  padding-top:    6px;
+  padding-bottom: max(env(safe-area-inset-bottom, 4px), 4px);
+}
+
+/* ── Phase / wave status line ────────────────────────────── */
+.dk-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: clamp(9px, 2.6vw, 12px);
+  letter-spacing: 0.06em;
+  opacity: 0.65;
+  min-height: 14px;
+}
+
+.dk-status-wave {
+  color: #7A6545;
+}
+
+/* ── Announcement text ───────────────────────────────────── */
+.dk-announce {
+  width: 100%;
+  text-align: center;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: clamp(11px, 3.4vw, 15px);
+  color: #EDE0C4;
+  text-shadow: 0 0 10px rgba(0,0,0,0.9), 1px 1px 0 #000;
+  letter-spacing: 0.03em;
+  padding: 3px 8px;
+  min-height: 18px;
+  opacity: 0;
+  transform: translateY(-5px);
+  transition: opacity 0.28s ease, transform 0.28s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dk-announce.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Resource chips row ──────────────────────────────────── */
+.dk-resources {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 2px 4px;
+}
+
+.dk-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.dk-chip-lbl {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: clamp(8px, 2.2vw, 10px);
+  opacity: 0.65;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dk-chip-val {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: clamp(10px, 2.8vw, 13px);
+  font-weight: bold;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 6px rgba(0,0,0,0.7);
+}

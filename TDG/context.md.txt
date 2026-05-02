@@ -1,0 +1,229 @@
+# Dungeon Keep — Full Game Development Prompt
+
+
+
+---
+
+
+
+## SECTION 1 — CORE GAME: Design, Systems & Backend Architecture
+
+
+
+**Game Design Document Summary**
+
+
+
+Dungeon Keep is a 2D top-down survival tower defence game played on a procedurally generated grid map in the browser. The core fantasy is: *the player should feel like a lone dungeon lord desperately holding the line, building smarter and smarter defences while the world outside gets more terrifying every night.* The core loop runs on a 4-minute cycle — 2 minutes of day (gather resources, build towers, repair walls, craft items, prep machines) and 2 minutes of night (pure survival, heavier waves, night-exclusive enemies, day towers go offline). Every 30 seconds the player is making a decision: do I keep mining or start placing? Every 5 minutes a boss arrives on top of the normal wave. Every session is a single run — one life, one local save, permanent death unless the player has a craftable revive token. Wave scaling is simple and brutal: 5 enemies on wave 1, +1 per wave, wave 100 = 105 enemies, boss every 10 waves on top of that count. The unique selling point is the intersection of active player survival (WASD movement, manual resource gathering, mana pool tied to tower use) with deep base building — you are not watching towers kill things, you are running, mining, repairing, and barely surviving while your defences hold or crumble around you.
+
+
+
+**Technical Architecture**
+
+
+
+Build this as a single HTML file game using Phaser 3 (via CDN) for the game engine — it is the strongest browser-native 2D game framework, handles tilemaps, sprite animation, physics, input, and scene management cleanly without a build pipeline. The game runs entirely client-side with no backend required for the initial version. The map is a procedurally generated grid (recommend 60x60 tiles, each tile 16x16px rendered at 2x = 32x32 on screen) with resource nodes, open terrain, and edge boundaries generated fresh each run using a seeded noise algorithm (use simplex noise via a CDN library). Enemy pathfinding uses a simple steering behaviour toward the player position — no A* needed since there is no fixed route, enemies just chase the player directly, with minor separation force to avoid clumping. Player movement is WASD with 8-directional movement, smooth acceleration, and a fixed camera that follows the player with slight lag. Save system is localStorage for the MVP — save one slot, auto-save at the start of each wave. The save object stores: wave number, player HP, mana, inventory, placed towers array (grid position + type), placed machines array, resource counts, revive token held boolean, and the map seed so the same map can be reconstructed. Input: keyboard primary (WASD move, E interact, F open crafting menu, mouse click to place/select in build mode). Audio: use Howler.js for SFX (enemy death, tower fire, resource collect, wave start, boss arrival) and a looping ambient track that shifts between a daytime earthy tone and a tense nighttime version. Performance: all sprites are spritesheet-based, no large assets, tilemap is rendered via Phaser's tilemap system for GPU-accelerated tile drawing.
+
+
+
+---
+
+
+
+## SECTION 2 — ART DIRECTION & VISUAL DESIGN
+
+
+
+**Character Design**
+
+
+
+The player character is a 16x16 pixel sprite rendered at 2x scale (32x32 on screen). Silhouette reads as a hunched, hooded figure — think a dungeon keeper, dark cloak, small but purposeful. NOT a generic RPG hero, no armour, no sword visible. The idle animation is a subtle 2-frame cloak sway and a slow breathing chest bob. Movement is snappy and responsive — no floaty momentum, the character should feel grounded and direct. Facing direction changes the sprite (4 directional or 8 directional sprites). When the player takes damage, the sprite flashes white for 2 frames then returns. When mana is critically low, a faint dark vignette pulses around the player character.
+
+
+
+Enemies each have a strictly readable silhouette at 16x16 scale:
+
+- Shambler: wide, hunched, slow — big rounded body, dragging gait, 4-frame walk cycle
+
+- Skitterer: small, low to ground, fast — almost insect-like, 6-frame rapid scuttle
+
+- Ironback: wide rectangular shell on back, walks slowly with weight — 3-frame heavy stomp
+
+- Burrower: worm-like, partially submerged look, surfaces with a dirt burst particle
+
+- Looter: skinny, fast, carries a visible sack — runs with a leaning forward posture
+
+- Shamanbeast: tall, thin, holds a staff — floats slightly off ground, slow orbit movement
+
+- Shade: barely visible, dark wisp shape with faint edge outline only — 0% opacity fill, 40% opacity border shimmer
+
+- Nightcrawler: medium, spider-like, splits on death into two half-size versions
+
+- Voidbat: wingspan wider than body, clear bat silhouette, swoops in arcs not straight lines
+
+- Siege Hulk (boss): 48x48 sprite, massive armoured hulk, has a visible hatch on its back that opens to spawn Shamblers
+
+- Pale Mother (boss): 48x48, tall ghostly figure, Shades orbit her constantly, erratic movement
+
+- Ironclad Colossus (boss): 48x48, fully mechanical shell, immune glow shifts colour when the weak towers are found
+
+
+
+**Environment & World Art**
+
+
+
+The map is a dungeon keep exterior — cracked stone ground tiles with subtle 3-4px variation per tile (lighter cracks, darker recesses, moss patches) so no two tiles look identical but none demand attention. Resource nodes are visually distinct objects sitting on top of ground tiles: trees are simple 3-colour pixel trees (dark trunk, two shades of muted green canopy), stone nodes are chunky irregular grey boulders with a highlight edge, coal veins are dark rock nodes with orange-black flecks, crystal nodes glow faintly with a 2-frame shimmer animation (the only tile-level animation outside of fire). Deep rock tiles in the lower half of the map are darker, cracked, visually colder — the player knows they've entered dangerous territory by the colour shift alone. Walls placed by the player are stone brick tiles with visible mortar lines. The map boundary is a solid dark stone wall. There is no parallax since this is top-down, but the day/night overlay creates depth — during the day the map is fully lit in warm amber-brown tones, at night a dark blue-purple overlay darkens the whole grid gradually, with Bonefire towers casting small orange light circles and Watchtowers casting grey-white vision circles. Grid lines are invisible by default and only appear faintly when the player opens the crafting/build menu with F.
+
+
+
+**Colour Palette**
+
+
+
+The palette is tight and intentional across two states:
+
+
+
+Day palette:
+
+- Ground base: `#3D2B1F` (dark warm brown)
+
+- Ground highlight: `#5C4033` (mid brown, tile variation)
+
+- Stone/rock: `#7A7065` (muted warm grey)
+
+- Foliage: `#4A6741` (muted dungeon green)
+
+- Player/friendly: `#C8A96E` (warm parchment — player cloak, tower wood)
+
+- UI/text: `#EDE0C4` (cream)
+
+
+
+Night shift — a `rgba(15, 10, 40, 0.55)` overlay applied to the entire game canvas that deepens gradually over the 2-minute transition. Enemy colours are chosen to contrast against both states:
+
+- Basic enemies: `#C45C3A` (burnt orange-red, always pops against dark ground)
+
+- Armoured enemies: `#6B7B8D` (steel blue-grey)
+
+- Night enemies: `#9B6BB5` (muted purple-violet)
+
+- Boss units: `#D4A017` (dark gold, distinct from everything else)
+
+- Crystal/rare: `#5BBCB0` (cool teal, only used on crystals and rare items)
+
+
+
+**UI / HUD Design**
+
+
+
+The HUD is minimal and always visible. Top-left: a vertical stack of resource icons (small 8x8 pixel icons — wood log, stone chunk, bone fragment, coal piece, iron nugget, crystal shard, gold coin) each with a number to the right in the cream UI font. No background panel — the icons sit directly on the game canvas with a subtle 1px dark shadow on the text only for readability. Top-right: wave number in large cream text (e.g. "Wave 47") above a circular day/night clock — a pie-chart style circle that drains clockwise, orange-fill for day, deep blue-fill for night, with a small sun/moon pixel icon in the centre that swaps at the phase change. Player HP and mana sit as two thin horizontal bars directly below the player sprite on screen — they move with the player. HP bar is dark red fill on a dark background, mana bar is deep blue fill. Bars are 24px wide, 3px tall, no border, just flat fill. When HP is below 25% the bar pulses. The crafting menu (opened with F) is a dark stone-textured panel that slides up from the bottom of the screen — four tabs across the top: Towers / Walls / Machines / Items. Each item shows a pixel icon, resource cost listed below it, and dims if the player can't afford it. No tooltips on hover — cost is always visible. Death screen is a full black fade with white pixel text: "Wave [X] — You died." and two options: "Try again" (new run) or "Main menu." Win is not possible — the game runs forever. The record wave is shown on the death screen. Revive token activates automatically on death if held — the screen flashes white, player respawns at full HP in the centre of their base with a 3-second invincibility window.
+
+
+
+**Animation & Juice Principles**
+
+
+
+Camera follows the player with 8% lerp lag — it slightly trails behind fast movement giving a weighty feel. Screen shake triggers on: boss arrival (heavy 300ms shake), player taking damage (sharp 100ms snap), Siege Hulk slam attack (medium 200ms rumble), Gravehammer tower activation (short 80ms). Hit reactions: every enemy hit flashes white for 1 frame. Enemy death plays a 4-frame disintegration animation (sprite shrinks and fades, no skeleton left). Boss death is a 12-frame explosion sequence with particle burst. Three key particle moments: enemy death — small 4-pixel bone/dust fragments scatter outward; resource collected — 3 small glowing dots float upward and fade; tower placed — stone dust puff of 6 particles in a ring. Environmental animation: trees have a 1-pixel sway on a 3-second loop. Bonefire tower has a 4-frame looping flame animation. Crystal nodes have a 2-frame shimmer. Nightcrawler split-on-death spawns two child units with a brief outward velocity burst before they resume chasing. Game feel note: placing a tower should feel like hammering a nail — a quick downward sprite squish on the tile, a stone-crack SFX, done.
+
+
+
+---
+
+
+
+## SECTION 3 — BUILD PLAN: Phased Tasks & Steps
+
+
+
+**Phase 1 — Core Prototype**
+
+- Set up single HTML file with Phaser 3 loaded via CDN (cdnjs.cloudflare.com)
+
+- Create 60x60 grid tilemap with procedural generation using simplex noise — vary ground tile variants, place resource nodes (trees, stone, rock) at weighted random positions biased toward map edges, deep rock tiles populate bottom half of map
+
+- Player controller: WASD 8-directional movement, smooth acceleration, camera follow with lerp lag, E key interact radius check, F key menu toggle
+
+- Placeholder coloured rectangles for all entities (player = white, enemies = red, towers = blue) — shaped to match intended silhouettes even at placeholder stage
+
+- Basic enemy spawn system: spawn N enemies at wave start from random map edges, steer toward player position each frame with separation force
+
+
+
+**Phase 2 — Core Systems**
+
+- Day/night cycle timer: 120s day, 120s night, canvas overlay fade, tower active/inactive state toggling
+
+- Resource system: E to manually harvest nodes, node depletion and respawn timer for trees only, bone scrap drop on enemy death with 30s despawn, inventory object tracking all 7 resource types
+
+- Wave manager: wave counter, enemy count formula (5 + wave - 1), boss spawn trigger every 10 waves, wave start auto-save to localStorage
+
+- Enemy type implementations: all 9 regular/night enemies with correct movement behaviours (Burrower underground phase, Shade invisible state, Voidbat arc movement, Looter targets machines not player, Shamanbeast heal aura)
+
+- Tower placement system: open grid tile required, deduct resources on place, tower attack logic per type (range check, fire rate, damage, day/night active state, downside behaviour)
+
+- Machine system: Wood Cutter, Stone Drill, Kiln, Scrap Bench, Deep Drill — place on grid, passive resource generation per tick
+
+- Crafting menu (F): four tab UI panel, item grid with icon + cost, afford check, instant craft
+
+
+
+**Phase 3 — Art Pass**
+
+- Draw all sprites on 16x16 grid: player (4-directional, idle + walk), all 9 regular enemies (idle + walk), 3 boss sprites at 48x48, all 12 tower sprites, all 5 machine sprites, resource node sprites (tree, stone, coal, iron, crystal), ground tile variants (4-5 per type), wall tile, UI icons for all 7 resources
+
+- Implement spritesheets in Phaser, wire up all animations
+
+- Apply day palette to ground/environment, night overlay system
+
+- HUD implementation: resource stack top-left, wave + clock top-right, HP/mana bars below player sprite
+
+- Crafting menu panel with stone texture background, tab system, item grid
+
+
+
+**Phase 4 — Boss Implementations**
+
+- Siege Hulk: HP pool, Shambler spawner on timer, fire weakness (Flame Vat deals 2x), hatch open/close animation
+
+- Pale Mother: Shade spawner, erratic movement pattern, player-hunt dash trigger when player is visible (no Bonefire/Watchtower nearby)
+
+- Ironclad Colossus: randomise 3 tower types per run that deal full damage, all others deal 0, immune glow colour indicates current weak-tower category (warm = fire type, cool = frost type, etc.)
+
+
+
+**Phase 5 — Polish & Juice**
+
+- All particle effects: enemy death scatter, resource collect float, tower place dust
+
+- Screen shake events wired to all triggers
+
+- Enemy hit flash, death disintegration animation
+
+- Tree sway, Bonefire flame loop, crystal shimmer environmental animations
+
+- Revive token auto-trigger on death: white flash, respawn, 3s invincibility
+
+- Death screen: wave record display, try again / main menu
+
+- SFX integration via Howler.js: tower fire per type, enemy death, resource collect, wave start horn, boss arrival, day/night transition chime, crafting place sound
+
+- Ambient music: day loop (earthy, tense calm), night loop (dark, urgent), crossfade on phase change
+
+
+
+**Phase 6 — Save & QA**
+
+- localStorage save/load: full game state serialised on wave start, load on page open if save exists
+
+- Map seed saved and used to reconstruct identical procedural map on load
+
+- Performance pass: confirm 60fps with 100+ enemies on screen, optimise enemy steering if needed
+
+- Edge case handling: revive token consumed correctly, boss + normal wave simultaneous spawn, machine destroyed by Looter removes it from grid correctly
+
+- Future: migrate save to Supabase for cross-device online persistence (schema already matches — just swap localStorage calls for Supabase upsert/select)
