@@ -11,6 +11,7 @@ import { HelpScene }      from './scenes/HelpScene.js';
 import { CaveScene }      from './scenes/CaveScene.js';
 import { DeepCaveScene }    from './scenes/DeepCaveScene.js';
 import { BlueprintsScene }  from './scenes/BlueprintsScene.js';
+import { DungeonScene }      from './scenes/DungeonScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -31,7 +32,7 @@ const config = {
     default: 'arcade',
     arcade: { gravity: { y: 0 }, debug: false },
   },
-  scene: [BootScene, MenuScene, HelpScene, BlueprintsScene, GameScene, CaveScene, DeepCaveScene, GameOverScene],
+  scene: [BootScene, MenuScene, HelpScene, BlueprintsScene, GameScene, CaveScene, DeepCaveScene, DungeonScene, GameOverScene],
 };
 
 new Phaser.Game(config);

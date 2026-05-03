@@ -12,12 +12,13 @@ import {
   BED_DEF, BOW_DEF, BOW_UPGRADED_DEF,
   REGEN_TOKEN_DEF, SPEED_BOOTS_DEF, UNCURSE_TOKEN_DEF,
   PICKAXE_TIERS, TORCH_DEF,
-  CURSED_TOWER_DEFS, BRIDGE_DEF,
+  CURSED_TOWER_DEFS, DUNGEON_TOWER_DEFS, BRIDGE_DEF,
   HELMET_DEFS, PANTS_DEFS, SET_BOOTS_DEFS, SET_BONUS_DEFS,
+  CONSUMABLE_DEFS,
 } from '../constants.js';
 import { blueprintSys } from './BlueprintSystem.js';
 
-const CRAFT_TABS = ['towers', 'walls', 'machines', 'items', 'gear', 'armour', 'cursed'];
+const CRAFT_TABS = ['towers', 'walls', 'machines', 'items', 'gear', 'armour', 'cursed', 'dungeon'];
 
 const ITEMS_DEF = {
   revive:       { name: 'Revive Token', cost: { crystal: 5, gold: 10, bone: 8 }, desc: 'Auto-use on death (no hardcore)', cat: 'consumable', tex: 'particle' },
@@ -36,6 +37,11 @@ const ITEMS_DEF = {
   tripwire:     { name: 'Tripwire',   cost: { iron: 1, bone: 2   }, desc: 'Slows enemies 70% while on it',        cat: 'trap', tex: 'tripwire'  },
   spike_pit:    { name: 'Spike Pit',  cost: { iron: 2, stone: 2  }, desc: 'Deals 25 dmg/0.8s (harms you too!)',   cat: 'trap', tex: 'spike_pit' },
   glue_pool:    { name: 'Glue Pool',  cost: { crystal: 2, bone: 3}, desc: 'Stops enemy movement (4s)',            cat: 'trap', tex: 'glue_pool' },
+  // ── Gameplay-changing consumables ─────────────────────
+  soul_bomb:      { ...CONSUMABLE_DEFS.soul_bomb      },
+  iron_ration:    { ...CONSUMABLE_DEFS.iron_ration    },
+  blood_pact:     { ...CONSUMABLE_DEFS.blood_pact     },
+  temporal_shard: { ...CONSUMABLE_DEFS.temporal_shard },
 };
 
 // Weapons only — chest armour moved to ARMOUR_TAB_DEF
@@ -44,10 +50,11 @@ const GEAR_DEF = {
   sword_stone:   { ...SWORD_DEFS.stone,   desc: `Dmg: ${SWORD_DEFS.stone.dmg}`,   cat: 'weapon' },
   sword_iron:    { ...SWORD_DEFS.iron,    desc: `Dmg: ${SWORD_DEFS.iron.dmg}`,    cat: 'weapon' },
   sword_crystal: { ...SWORD_DEFS.crystal, desc: `Dmg: ${SWORD_DEFS.crystal.dmg}`, cat: 'weapon' },
-  sword_ruby:    { ...SWORD_DEFS.ruby,    desc: `Dmg: ${SWORD_DEFS.ruby.dmg} fast`, cat: 'weapon' },
-  sword_emerald: { ...SWORD_DEFS.emerald, desc: `Dmg: ${SWORD_DEFS.emerald.dmg}`, cat: 'weapon' },
-  bow:           { ...BOW_DEF,            desc: `Auto ${BOW_DEF.dmg}dmg/2s`,      cat: 'weapon' },
-  bow_upgraded:  { ...BOW_UPGRADED_DEF,   desc: `Auto ${BOW_UPGRADED_DEF.dmg}dmg/1.2s`, cat: 'weapon' },
+  sword_ruby:    { ...SWORD_DEFS.ruby,       desc: `Dmg: ${SWORD_DEFS.ruby.dmg} fast`,    cat: 'weapon' },
+  sword_emerald: { ...SWORD_DEFS.emerald,    desc: `Dmg: ${SWORD_DEFS.emerald.dmg}`,      cat: 'weapon' },
+  sword_phase:   { ...SWORD_DEFS.phase_blade,desc: `Dmg: ${SWORD_DEFS.phase_blade.dmg} ignores armor`, cat: 'weapon' },
+  bow:           { ...BOW_DEF,               desc: `Auto ${BOW_DEF.dmg}dmg/2s`,            cat: 'weapon' },
+  bow_upgraded:  { ...BOW_UPGRADED_DEF,      desc: `Auto ${BOW_UPGRADED_DEF.dmg}dmg/1.2s`, cat: 'weapon' },
 };
 
 // All armour pieces — chest + helmet + pants + boots (20 items, 4×5 grid)
@@ -382,6 +389,8 @@ export class HUD {
     this._hpFill = this.scene.add.rectangle(0, 0, 26, 4, 0x880000).setDepth(13).setOrigin(0, 0);
     this._mpBg   = this.scene.add.rectangle(0, 0, 26, 4, 0x111111).setDepth(12).setOrigin(0, 0);
     this._mpFill = this.scene.add.rectangle(0, 0, 26, 4, 0x004488).setDepth(13).setOrigin(0, 0);
+    this._xpBg   = this.scene.add.rectangle(0, 0, 26, 3, 0x111111).setDepth(12).setOrigin(0, 0);
+    this._xpFill = this.scene.add.rectangle(0, 0, 26, 3, 0xFFCC00).setDepth(13).setOrigin(0, 0);
   }
 
   _updatePlayerBars() {
@@ -392,10 +401,15 @@ export class HUD {
     this._hpFill.setPosition(px, py);
     this._mpBg.setPosition(px, py + 5);
     this._mpFill.setPosition(px, py + 5);
+    this._xpBg.setPosition(px, py + 10);
+    this._xpFill.setPosition(px, py + 10);
     const hpPct = Math.max(0, s.playerHP / s.playerMaxHP);
     const mpPct = Math.max(0, s.playerMP / s.playerMaxMP);
+    const lvlSys = s.playerLevelSys;
+    const xpPct  = lvlSys ? Math.min(1, lvlSys.xp / lvlSys.xpToNext) : 0;
     this._hpFill.setSize(26 * hpPct, 4);
     this._mpFill.setSize(26 * mpPct, 4);
+    this._xpFill.setSize(26 * xpPct, 3);
     this._hpFill.setAlpha(hpPct < 0.25 ? 0.5 + Math.sin(Date.now() * 0.008) * 0.5 : 1);
   }
 
@@ -560,11 +574,13 @@ export class HUD {
     else if (this._selectedTab === 'gear')     items = Object.entries(GEAR_DEF).map(([k, v])           => ({ key: k, def: v, cat: v.cat || 'gear' }));
     else if (this._selectedTab === 'armour')   items = Object.entries(ARMOUR_TAB_DEF).map(([k, v])    => ({ key: k, def: v, cat: v.cat }));
     else if (this._selectedTab === 'cursed') {
-      // Bridge first, then all cursed towers
       items = [
         { key: 'bridge', def: BRIDGE_DEF, cat: 'bridge' },
         ...Object.entries(CURSED_TOWER_DEFS).map(([k, v]) => ({ key: k, def: v, cat: 'cursed_tower' })),
       ];
+    }
+    else if (this._selectedTab === 'dungeon') {
+      items = Object.entries(DUNGEON_TOWER_DEFS).map(([k, v]) => ({ key: k, def: v, cat: 'dungeon_tower' }));
     }
 
     const inv = this.scene.inventory;
@@ -754,8 +770,8 @@ export class HUD {
       return;
     }
 
-    // Cursed towers
-    if (cat === 'cursed_tower') {
+    // Cursed / dungeon towers
+    if (cat === 'cursed_tower' || cat === 'dungeon_tower') {
       this.scene.buildMode = { cat: 'tower', key, def };
       this.scene._buildModeTime = this.scene.time.now;
       this.closeCraft();

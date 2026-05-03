@@ -1,7 +1,7 @@
 // ============================================================
 // GameScene — main game orchestrator
 // ============================================================
-import { TS, MW, MH, VW, VH, INTERACT_RANGE, PLAYER_SPEED, PICKAXE_TIERS, ORE_TIER_REQ, WALL_DEFS, CHEST_DEFS, MAP_THEMES, CURSED_TOWER_DEFS, BRIDGE_DEF, BLUEPRINT_DEFS, RELIC_DEFS, HELMET_DEFS, PANTS_DEFS, SET_BOOTS_DEFS, SET_BONUS_DEFS } from '../constants.js';
+import { TS, MW, MH, VW, VH, INTERACT_RANGE, PLAYER_SPEED, PICKAXE_TIERS, ORE_TIER_REQ, WALL_DEFS, CHEST_DEFS, MAP_THEMES, CURSED_TOWER_DEFS, BRIDGE_DEF, BLUEPRINT_DEFS, RELIC_DEFS, HELMET_DEFS, PANTS_DEFS, SET_BOOTS_DEFS, SET_BONUS_DEFS, CONSUMABLE_DEFS } from '../constants.js';
 import { pdist } from '../utils.js';
 import { MapGenerator }        from '../systems/MapGenerator.js';
 import { EnemyManager }        from '../systems/EnemyManager.js';
@@ -19,15 +19,20 @@ import { RelicSystem }         from '../systems/RelicSystem.js';
 import { RaiderSystem }        from '../systems/RaiderSystem.js';
 import { MutationSystem }      from '../systems/MutationSystem.js';
 import { settingsStore }       from '../systems/SettingsStore.js';
+import { PlayerLevelSystem }   from '../systems/PlayerLevelSystem.js';
+import { ContractSystem }      from '../systems/ContractSystem.js';
+import { MerchantSystem }      from '../systems/MerchantSystem.js';
+import { achievementSys }      from '../systems/AchievementSystem.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
 
   init(data) {
-    this.isNewGame    = data?.newGame !== false;
-    this.slotId       = data?.slotId ?? 1;
-    this.saveSlotKey  = `siege_eternal_save_${this.slotId}`;
-    this.isHardcore   = data?.hardcore ?? false;
+    this.isNewGame      = data?.newGame !== false;
+    this.slotId         = data?.slotId ?? 1;
+    this.saveSlotKey    = `siege_eternal_save_${this.slotId}`;
+    this.isHardcore     = data?.hardcore ?? false;
+    this.challengeMods  = data?.challengeMods ?? {};
   }
 
   // ============================================================
@@ -102,9 +107,17 @@ export class GameScene extends Phaser.Scene {
     this.perkSys       = new PerkSystem(this);
     this.miniObjSys    = new MiniObjectiveSystem(this);
     this.backpackUI    = new BackpackUI(this);
-    this.relicSys      = new RelicSystem(this);
-    this.raiderSys     = new RaiderSystem(this);
-    this.mutationSys   = new MutationSystem(this);
+    this.relicSys       = new RelicSystem(this);
+    this.raiderSys      = new RaiderSystem(this);
+    this.mutationSys    = new MutationSystem(this);
+    this.playerLevelSys = new PlayerLevelSystem(this);
+    this.contractSys    = new ContractSystem(this);
+    this.merchantSys    = new MerchantSystem(this);
+    achievementSys.attachScene(this);
+    this.events.on('player_level_up', (lvl) => {
+      if (lvl >= 10) achievementSys.unlock('level_10');
+    });
+    this.events.on('achievement_check', (id) => achievementSys.unlock(id));
     this._playerPoisonTimer = 0;
     this._playerPoisonDot   = 0;
     this._relicPickups = [];
@@ -137,13 +150,27 @@ export class GameScene extends Phaser.Scene {
       this.cameras.main.shake = () => {};
     }
 
-    // ── Listen for wake event (returning from cave or codex) ──
+    // ── Listen for wake event (returning from cave, codex, or dungeon) ──
     this.events.on('wake', () => {
-      // Returning from codex — just un-sleep, no state restoration needed
-      if (this._codexOpen) {
-        this._codexOpen = false;
+      if (this._codexOpen) { this._codexOpen = false; return; }
+
+      // Returning from dungeon
+      if (this._dungeonOpen) {
+        this._dungeonOpen = false;
+        const hp  = this.registry.get('playerHP');
+        const inv = this.registry.get('inventory');
+        if (hp  !== undefined) this.playerHP  = hp;
+        if (inv !== undefined) this.inventory = { ...this.inventory, ...inv };
+        if (this.registry.get('dungeonCleared')) {
+          this.contractSys?.progress('dungeon_cleared', 1);
+          achievementSys.unlock('dungeon_clear');
+          this.registry.set('dungeonCleared', false);
+        }
+        this.cameras.main.fadeIn(500, 0, 0, 0);
+        this.hud.showMsg('You emerge from the Dungeon!', 3000);
         return;
       }
+
       // Returning from cave
       this._caveTransitioning = true;
       this.time.delayedCall(2000, () => { this._caveTransitioning = false; });
@@ -166,6 +193,12 @@ export class GameScene extends Phaser.Scene {
       this._placeStartingWalls();
       this.waveMgr.startDay();
       this.hud.showMsg('Day 0 — Grace period. No enemies yet — build your defences!', 5000);
+      this.contractSys.generateContracts(1);
+      // Apply challenge mods on new game
+      if (this.challengeMods?.hp1) {
+        this.playerMaxHP = 1; this.playerHP = 1;
+        this.hud.showMsg('CHALLENGE: 1 HP Mode active!', 5000);
+      }
     }
   }
 
@@ -227,7 +260,7 @@ export class GameScene extends Phaser.Scene {
     this.player.body.setVelocity(vx, vy);
 
     if (Phaser.Input.Keyboard.JustDown(keys.interact)) {
-      if (!this._tryCaveEnter() && !this._tryBed() && !this._tryCampfire() && !this._tryChest() && !this._tryUncurse()) this._tryHarvest();
+      if (!this._tryCaveEnter() && !this._tryDungeonEnter() && !this._tryMerchantShop() && !this._tryBed() && !this._tryCampfire() && !this._tryChest() && !this._tryUncurse()) this._tryHarvest();
     }
     if (Phaser.Input.Keyboard.JustDown(this._keys.attack)) this._tryAttack();
     if (Phaser.Input.Keyboard.JustDown(this._keys.perkActive)) this.perkSys.triggerActive();
@@ -971,6 +1004,46 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  _tryDungeonEnter() {
+    if (!this.dungeonEntranceTile) return false;
+    const { x, y } = this.dungeonEntranceTile;
+    const wx = x * TS + TS / 2, wy = y * TS + TS / 2;
+    if (Math.hypot(this.player.x - wx, this.player.y - wy) > TS * 2) return false;
+    if ((this.inventory.dungeon_key ?? 0) < 1) {
+      this.hud.showMsg('Dungeon sealed — you need a Dungeon Key (2% drop from enemies).', 3000);
+      return true;
+    }
+    this.inventory.dungeon_key--;
+    this._dungeonOpen = true;
+    this.contractSys?.progress('caves_entered', 1);
+    this.registry.set('playerHP',        this.playerHP);
+    this.registry.set('playerMP',        this.playerMP);
+    this.registry.set('inventory',       this.inventory);
+    this.registry.set('playerMaxHP',     this.playerMaxHP);
+    this.registry.set('playerAttackDmg', this.playerAttackDmg);
+    this.registry.set('wave',            this.wave);
+    this.registry.set('slotId',          this.slotId);
+    this.registry.set('saveSlotKey',     this.saveSlotKey);
+    this.registry.set('isHardcore',      this.isHardcore);
+    this.cameras.main.fadeOut(500, 0, 0, 0);
+    this.time.delayedCall(500, () => {
+      this.scene.sleep('Game');
+      this.scene.launch('Dungeon', {
+        wave: this.wave, slotId: this.slotId,
+        saveSlotKey: this.saveSlotKey, isHardcore: this.isHardcore,
+        playerHP: this.playerHP, playerMaxHP: this.playerMaxHP,
+        playerMP: this.playerMP, playerAttackDmg: this.playerAttackDmg,
+        inventory: { ...this.inventory },
+      });
+    });
+    return true;
+  }
+
+  _tryMerchantShop() {
+    if (!this.merchantSys?.active) return false;
+    return this.merchantSys.tryInteract(this.player.x, this.player.y);
+  }
+
   _tryBed() {
     for (const m of this.towerMgr.machines) {
       if (m.key !== 'bed') continue;
@@ -1119,14 +1192,24 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-ESC', () => this._togglePause());
     this.input.keyboard.on('keydown-TAB', () => this.backpackUI?.toggle());
 
-    // Number keys 1-7: switch craft tabs when open, else 1-5 = hotbar
-    const NUM_KEYS = ['ONE','TWO','THREE','FOUR','FIVE','SIX','SEVEN'];
+    // Number keys 1-8: switch craft tabs when open, else 1-4 = hotbar consumables
+    const NUM_KEYS = ['ONE','TWO','THREE','FOUR','FIVE','SIX','SEVEN','EIGHT'];
     NUM_KEYS.forEach((code, i) => {
       this.input.keyboard.on(`keydown-${code}`, () => {
         if (this.hud.isCraftOpen()) {
           this.hud._selectTab(i);
           this._gamepadMenuIdx = 0;
           this._gamepadTabIdx  = i;
+        } else {
+          // Hotbar: 1=eat, 2=soul_bomb, 3=iron_ration, 4=blood_pact, 5=temporal_shard
+          const hotbarActions = [
+            () => this._tryCampfire(),
+            () => this._useSoulBomb(),
+            () => this._useIronRation(),
+            () => this._useBloodPact(),
+            () => this._useTemporalShard(),
+          ];
+          hotbarActions[i]?.();
         }
       });
     });
@@ -1367,6 +1450,69 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  // ── Consumable effects ────────────────────────────────────
+  _useSoulBomb() {
+    if ((this.inventory.soul_bomb ?? 0) < 1) return;
+    this.inventory.soul_bomb--;
+    const r = CONSUMABLE_DEFS.soul_bomb.radius;
+    let killed = 0;
+    for (const e of (this.enemyMgr?.enemies ?? [])) {
+      if (!e.alive) continue;
+      if (Math.hypot(e.sprite.x - this.player.x, e.sprite.y - this.player.y) < r) {
+        e.hp = 0;
+        killed++;
+      }
+    }
+    this.enemyMgr?.spawnParticles(this.player.x, this.player.y, 0xFF00FF, 30);
+    this.hud.showMsg(`Soul Bomb! ${killed} enemies destroyed.`, 2500);
+    soundMgr.play('bossDie');
+  }
+
+  _useIronRation() {
+    if ((this.inventory.iron_ration ?? 0) < 1) return;
+    this.inventory.iron_ration--;
+    const boost = CONSUMABLE_DEFS.iron_ration.armorBoost;
+    const dur   = CONSUMABLE_DEFS.iron_ration.duration;
+    this._ironRationBoost = (this._ironRationBoost ?? 0) + boost;
+    this.playerArmor += boost;
+    this.hud.showMsg(`Iron Ration: +${boost} armor for 30s`, 2500);
+    this.time.delayedCall(dur, () => {
+      this._ironRationBoost = (this._ironRationBoost ?? boost) - boost;
+      this.playerArmor = Math.max(0, this.playerArmor - boost);
+    });
+  }
+
+  _useBloodPact() {
+    if ((this.inventory.blood_pact ?? 0) < 1) return;
+    const hpCost = CONSUMABLE_DEFS.blood_pact.hpCost;
+    if (this.playerHP <= hpCost) { this.hud.showMsg('Not enough HP for Blood Pact!', 1500); return; }
+    this.inventory.blood_pact--;
+    this.playerHP -= hpCost;
+    const mult = CONSUMABLE_DEFS.blood_pact.dmgMult;
+    const dur  = CONSUMABLE_DEFS.blood_pact.duration;
+    const prev = this.playerAttackDmg;
+    this.playerAttackDmg = Math.floor(this.playerAttackDmg * mult);
+    this.hud.showMsg(`Blood Pact: triple damage for 10s! (cost: ${hpCost} HP)`, 2500);
+    this.cameras.main.flash(300, 200, 0, 0);
+    this.time.delayedCall(dur, () => { this.playerAttackDmg = prev; });
+  }
+
+  _useTemporalShard() {
+    if ((this.inventory.temporal_shard ?? 0) < 1) return;
+    this.inventory.temporal_shard--;
+    const dur = CONSUMABLE_DEFS.temporal_shard.duration;
+    for (const e of (this.enemyMgr?.enemies ?? [])) {
+      if (!e.alive) continue;
+      e.slow      = 0;
+      e.slowTimer = dur;
+      e.frozen    = true; e.frozenTimer = dur;
+      if (e.sprite?.active) e.sprite.setTint(0x88EEFF);
+      this.time.delayedCall(dur, () => { if (e.sprite?.active) e.sprite.clearTint(); });
+    }
+    this.enemyMgr?.spawnParticles(this.player.x, this.player.y, 0x44DDFF, 25);
+    this.hud.showMsg('Temporal Shard: all enemies frozen for 5s!', 2500);
+  }
+
   // ============================================================
   // SAVE / LOAD
   // ============================================================
@@ -1402,6 +1548,9 @@ export class GameScene extends Phaser.Scene {
       mapTheme:        this.mapTheme,
       perks:           this.perkSys?.serialize(),
       relics:          this.relicSys?.serialize(),
+      playerLevel:     this.playerLevelSys?.serialize(),
+      contracts:       this.contractSys?.serialize(),
+      challengeMods:   this.challengeMods ?? {},
       chests:          (this.chests || []).map(c => ({ type: c.type, tx: c.tx, ty: c.ty, isOpen: c.isOpen })),
       ...this.towerMgr.serialize(),
     };
@@ -1455,8 +1604,16 @@ export class GameScene extends Phaser.Scene {
       this.inventory.uncurse_token    = this.inventory.uncurse_token    ?? 0;
       this.inventory.bridge_blueprint = this.inventory.bridge_blueprint ?? 0;
       // Restore perks (mapTheme already loaded before generate())
-      if (s.perks)  this.perkSys?.restore(s.perks);
-      if (s.relics) this.relicSys?.restore(s.relics);
+      if (s.perks)        this.perkSys?.restore(s.perks);
+      if (s.relics)       this.relicSys?.restore(s.relics);
+      if (s.playerLevel)  this.playerLevelSys?.restore(s.playerLevel);
+      if (s.contracts)    this.contractSys?.restore(s.contracts);
+      if (s.challengeMods) this.challengeMods = s.challengeMods;
+      this.inventory.dungeon_key    = this.inventory.dungeon_key    ?? 0;
+      this.inventory.soul_bomb      = this.inventory.soul_bomb      ?? 0;
+      this.inventory.iron_ration    = this.inventory.iron_ration    ?? 0;
+      this.inventory.blood_pact     = this.inventory.blood_pact     ?? 0;
+      this.inventory.temporal_shard = this.inventory.temporal_shard ?? 0;
       // Mark chests that were already opened
       if (s.chests && this.chests) {
         for (const saved of s.chests) {
