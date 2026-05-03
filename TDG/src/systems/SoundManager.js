@@ -244,6 +244,33 @@ class SoundManager {
     } catch (e) {}
     this._noise(0.2, 0.08, 3000);
   }
+
+  revive() {
+    const ctx = this._getCtx();
+    if (!ctx || !this._enabled) return;
+    // Ascending triple-note fanfare
+    const notes = [440, 554, 659];
+    notes.forEach((freq, i) => {
+      const t = ctx.currentTime + i * 0.18;
+      try {
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this._dest());
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.25, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+        osc.start(t);
+        osc.stop(t + 0.35);
+      } catch (e) {}
+    });
+  }
+
+  /** Generic dispatcher for named sounds */
+  play(name) {
+    if (typeof this[name] === 'function') this[name]();
+  }
 }
 
 export const soundMgr = new SoundManager();

@@ -117,7 +117,8 @@ export class DeepCaveScene extends Phaser.Scene {
     this._fowOverlay = this.add.graphics()
       .setScrollFactor(0)
       .setDepth(34);
-    this._fowOverlay.fillStyle(0x000000, 0.48);
+    const alpha = this.hasTorch ? 0.48 : 0.72;
+    this._fowOverlay.fillStyle(0x000000, alpha);
     this._fowOverlay.fillRect(0, 0, VW, VH);
 
     // Mask shape — drawn each frame in screen-space coords.

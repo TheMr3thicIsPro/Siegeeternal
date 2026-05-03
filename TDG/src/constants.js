@@ -283,8 +283,9 @@ export const SWORD_DEFS = {
   phase_blade: { name: 'Phase Blade',   cost: { void_shards: 5, crystal: 5, souls: 10 }, dmg: 180, tex: 'sword_phase', attackCooldown: 400, phaseHit: true, desc: 'Phases through armor. Dungeon-forged.' },
 };
 
-export const BOW_DEF          = { name: 'Bow',          cost: { wood: 10, bone: 5                           }, dmg: 20, tex: 'bow',         autoFire: 2000 };
-export const BOW_UPGRADED_DEF = { name: 'Upgraded Bow', cost: { souls: 5, emerald: 1, crystal: 1            }, dmg: 30, tex: 'bow_upgraded', autoFire: 1200, requiresWeapon: 'bow' };
+export const BOW_DEF          = { name: 'Bow',          cost: { wood: 10, bone: 5              }, dmg: 20, tex: 'bow',          autoFire: 2000, desc: 'Auto-fires at nearest enemy in range' };
+export const RUBY_BOW_DEF     = { name: 'Ruby Bow',     cost: { ruby: 2,  bone: 8, iron: 3     }, dmg: 15, tex: 'ruby_bow',     autoFire: 800,  desc: 'Fast rate, less damage' };
+export const EMERALD_BOW_DEF  = { name: 'Emerald Bow',  cost: { emerald: 2, bone: 8, crystal: 3 }, dmg: 45, tex: 'emerald_bow',  autoFire: 3000, desc: 'High damage, slower fire' };
 
 export const UPGRADE_TOKEN_DEF = { name: 'Upgrade Token', cost: { souls: 25, bone: 25, crystal: 25 }, desc: 'Upgrade a tower (max lvl 10)', tex: 'upgrade_token', cat: 'consumable' };
 export const REGEN_TOKEN_DEF   = { name: 'Regen Token',   cost: { crystal: 5, souls: 5, bone: 10  }, desc: 'Repair all towers to full HP',  tex: 'regen_token',   cat: 'consumable' };
