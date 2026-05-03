@@ -46,6 +46,14 @@ export class WaveManager {
     this.scene.hud?.showMsg(`Day ${this.scene.wave} — build and gather!`, 4000);
     soundMgr.dayStart();
 
+    // Achievement / contract tracking
+    const w = this.scene.wave;
+    this.scene.contractSys?.progress('waves', 1);
+    this.scene.contractSys?.progress('night_survived', 1);
+    if (w >= 10)  this.scene.events?.emit('achievement_check', 'wave_10');
+    if (w >= 25)  this.scene.events?.emit('achievement_check', 'wave_25');
+    if (w >= 50)  this.scene.events?.emit('achievement_check', 'wave_50');
+
     // Reset all chests every day so players can re-loot each cycle
     if (this.scene.wave > 0) {
       this._resetChests();
@@ -111,6 +119,16 @@ export class WaveManager {
       if (this.scene.alive) this.scene.raiderSys?.maybeStartRaid(this.scene.wave);
     });
 
+    // 20% chance each night to spawn a merchant NPC
+    this.scene.time.delayedCall(8000, () => {
+      if (this.scene.alive) this.scene.merchantSys?.maybeSpawn(this.scene.wave);
+    });
+
+    // Relentless challenge: keep spawning enemies throughout the night
+    if (this.scene.challengeMods?.relentless) {
+      this._relentlessTimer = 12000;
+    }
+
     this.scene.time.delayedCall(2000, () => {
       if (this.scene.alive) this._spawnWave();
     });
@@ -135,6 +153,23 @@ export class WaveManager {
     }
 
     if (this.suppressTransitions) return;
+
+    // Relentless challenge mod: extra spawns every 12s at night
+    if (!this.isDay && this.scene.challengeMods?.relentless && this._relentlessTimer !== undefined) {
+      this._relentlessTimer -= delta;
+      if (this._relentlessTimer <= 0) {
+        this._relentlessTimer = 12000;
+        const pool = this._getEligiblePool(this.scene.wave);
+        const n = 3 + Math.floor(this.scene.wave / 5);
+        for (let i = 0; i < n; i++) {
+          this.scene.time.delayedCall(i * 600, () => {
+            if (!this.scene.alive || this.isDay) return;
+            this.scene.enemyMgr.spawnAtEdge(pool[Math.floor(Math.random() * pool.length)]);
+            this.waveEnemiesLeft++;
+          });
+        }
+      }
+    }
 
     // Solar eclipse: trickle-spawn enemies during the day
     if (this.isDay && this.scene.weatherSystem?.spawnsDuringDay?.()) {
@@ -259,6 +294,7 @@ export class WaveManager {
     this.waveActive = false;
     this.scene.miniObjSys?.onWaveCleared();
     this.scene.raiderSys?.onWaveEnd?.();
+    this.scene.merchantSys?.onWaveCleared?.();
   }
 
   _resetChests() {

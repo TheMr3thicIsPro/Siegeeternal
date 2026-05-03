@@ -1,7 +1,7 @@
 // ============================================================
 // EnemyManager — spawn, update, and remove enemies
 // ============================================================
-import { TS, MW, MH, ENEMY_DEFS, CURSED_ENEMY_KEYS } from '../constants.js';
+import { TS, MW, MH, ENEMY_DEFS, CURSED_ENEMY_KEYS, DUNGEON_KEY_DROP_CHANCE } from '../constants.js';
 import { pdist } from '../utils.js';
 import { soundMgr } from './SoundManager.js';
 
@@ -547,9 +547,17 @@ export class EnemyManager {
     // Relic on-kill effects
     scene.relicSys?.onKill(enemy);
 
+    // Player level XP
+    scene.playerLevelSys?.addXP(enemy);
+
+    // Contract kill progress
+    scene.contractSys?.progress('kills', 1);
+    if (enemy.def.boss) scene.contractSys?.progress('boss_kills', 1);
+
     const isBounty = scene.waveMgr?.isBountyRound ?? false;
     const relicMult = scene.relicSys?.dropMult() ?? 1;
-    const dropMult = (isBounty ? 2 : 1) * relicMult;
+    const scarceMult = scene.challengeMods?.scarce ? 0.5 : 1;
+    const dropMult = (isBounty ? 2 : 1) * relicMult * scarceMult;
 
     // Drop resources directly into inventory
     if (enemy.def.drop) {
@@ -640,6 +648,13 @@ export class EnemyManager {
     // ── Mutation: BONE STORM — +3 extra bone per kill ─────
     if (scene.mutationSys?.isBoneStorm() && !enemy.def.boss) {
       scene.inventory.bone = (scene.inventory.bone || 0) + 3;
+    }
+
+    // 2% chance to drop a Dungeon Key from any non-boss, non-dungeon enemy
+    if (!enemy.def.boss && !enemy.def.dungeon && Math.random() < DUNGEON_KEY_DROP_CHANCE) {
+      scene.inventory.dungeon_key = (scene.inventory.dungeon_key || 0) + 1;
+      this.spawnParticles(sp.x, sp.y, 0xAA55FF, 10);
+      scene.hud?.showMsg('Dungeon Key dropped! Find the Dungeon entrance in the cursed zone.', 4000);
     }
 
     // Raider kill — no tower spawns (removed)

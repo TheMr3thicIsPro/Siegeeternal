@@ -1,7 +1,7 @@
 // ============================================================
 // TowerManager — towers, machines, walls, projectiles
 // ============================================================
-import { TS, MW, MH, TOWER_DEFS, MACHINE_DEFS, WALL_DEFS, PROJ_TEX, CURSED_TOWER_DEFS, CURSED_PROJ_TEX } from '../constants.js';
+import { TS, MW, MH, TOWER_DEFS, MACHINE_DEFS, WALL_DEFS, PROJ_TEX, CURSED_TOWER_DEFS, CURSED_PROJ_TEX, DUNGEON_TOWER_DEFS } from '../constants.js';
 import { pdist } from '../utils.js';
 
 const WALL_BAR_W   = 28;
@@ -32,9 +32,9 @@ export class TowerManager {
   // ── Placement ───────────────────────────────────────────
 
   placeTower(key, tx, ty) {
-    const def = TOWER_DEFS[key] || CURSED_TOWER_DEFS[key];
+    const def = TOWER_DEFS[key] || CURSED_TOWER_DEFS[key] || DUNGEON_TOWER_DEFS[key];
     if (!def) return null;
-    const isCursed = !!CURSED_TOWER_DEFS[key];
+    const isCursed = !!(CURSED_TOWER_DEFS[key] || DUNGEON_TOWER_DEFS[key]);
     const sp  = this.scene.add.sprite(tx * TS + TS / 2, ty * TS + TS / 2, def.tex).setDepth(3);
     const isDay = this.scene.waveMgr?.isDay !== false;
     const active = isDay ? def.dayOn : def.nightOn;
@@ -378,7 +378,10 @@ export class TowerManager {
   }
 
   updateTowers(time, delta) {
-    if (delta) this.updateCorruption(delta, time);
+    if (delta) {
+      this.updateCorruption(delta, time);
+      this.updateDungeonTowerPassives(delta);
+    }
     const enemies = this.scene.enemyMgr.enemies;
 
     for (const tower of this.towers) {
@@ -414,6 +417,12 @@ export class TowerManager {
         continue;
       }
 
+      // Spirit Totem — passive; heal all nearby towers 1 HP/s (handled separately below)
+      if (tower.key === 'spirit_totem') continue;
+
+      // Oracle Beacon — passive; reveal invisible + buff nearby towers
+      if (tower.key === 'oracle_beacon') continue;
+
       // Grave Tower — spawn skeleton minions instead of firing projectile
       if (tower.key === 'grave_tower') {
         tower.lastFire = time;
@@ -445,6 +454,38 @@ export class TowerManager {
       tower.lastFire = time;
       if (tower.def.beam) this._fireBeam(tower, target);
       else                this._fire(tower, target);
+    }
+  }
+
+  updateDungeonTowerPassives(delta) {
+    const scene = this.scene;
+    for (const tower of this.towers) {
+      if (tower.key === 'spirit_totem' && tower.def.healNearby) {
+        const heal = tower.def.healNearby * (delta / 1000);
+        for (const t2 of this.towers) {
+          if (t2 === tower) continue;
+          if (Math.hypot(t2.sprite.x - tower.sprite.x, t2.sprite.y - tower.sprite.y) < (tower.def.healRadius ?? 96)) {
+            t2.hp = Math.min(t2.maxHp, (t2.hp ?? 0) + heal);
+          }
+        }
+      }
+      if (tower.key === 'oracle_beacon' && tower.def.revealRadius) {
+        const r = tower.def.revealRadius;
+        for (const enemy of (scene.enemyMgr?.enemies ?? [])) {
+          if (!enemy.alive) continue;
+          if (Math.hypot(enemy.sprite.x - tower.sprite.x, enemy.sprite.y - tower.sprite.y) < r) {
+            if (enemy.def.invis && enemy.sprite.alpha < 0.5) enemy.sprite.setAlpha(0.85);
+          }
+        }
+        if (tower.def.buffNearby) {
+          for (const t2 of this.towers) {
+            if (t2 === tower) continue;
+            if (Math.hypot(t2.sprite.x - tower.sprite.x, t2.sprite.y - tower.sprite.y) < r) {
+              t2._oracleBuff = tower.def.buffNearby;
+            }
+          }
+        }
+      }
     }
   }
 
@@ -595,7 +636,8 @@ export class TowerManager {
     const dx  = target.sprite.x - tower.sprite.x;
     const dy  = target.sprite.y - tower.sprite.y;
     const len = Math.hypot(dx, dy) || 1;
-    const tex = PROJ_TEX[tower.key] || CURSED_PROJ_TEX[tower.key] || 'proj_arrow';
+    const DUNGEON_PROJ_TEX = { shadow_cannon: 'proj_void', thorn_cage: 'proj_poison' };
+    const tex = PROJ_TEX[tower.key] || CURSED_PROJ_TEX[tower.key] || DUNGEON_PROJ_TEX[tower.key] || 'proj_arrow';
     const spd = tower.key === 'void_cannon' ? 200 : 300;
     const sp  = this.scene.add.sprite(tower.sprite.x, tower.sprite.y, tex).setDepth(15);
     this.projectiles.push({
@@ -632,8 +674,8 @@ export class TowerManager {
     const wasElectrified = enemy.electrified;
     const wasFrozen      = enemy.frozen;
 
-    let dmg = Math.round(proj.towerDef.dmg * (proj.tower?.dmgMult ?? 1));
-    if (enemy.def.armor) dmg = Math.max(1, dmg - enemy.def.armor);
+    let dmg = Math.round(proj.towerDef.dmg * (proj.tower?.dmgMult ?? 1) * (1 + (proj.tower?._oracleBuff ?? 0)));
+    if (enemy.def.armor && !proj.towerDef.armorIgnore) dmg = Math.max(1, dmg - enemy.def.armor);
 
     // ── Synergy: SHATTER — frozen enemy takes 2.5× from non-frost ─
     if (wasFrozen && !FROST_TOWERS.has(tKey)) {
@@ -720,7 +762,7 @@ export class TowerManager {
 
   restore(data, isDay) {
     (data.towers   || []).forEach(t => {
-      if (!TOWER_DEFS[t.key] && !CURSED_TOWER_DEFS[t.key]) return;
+      if (!TOWER_DEFS[t.key] && !CURSED_TOWER_DEFS[t.key] && !DUNGEON_TOWER_DEFS[t.key]) return;
       const obj = this.placeTower(t.key, t.gx, t.gy);
       if (!obj) return;
       obj.hp       = t.hp;

@@ -1158,5 +1158,139 @@ export class BootScene extends Phaser.Scene {
     tex('ico_void_shards',    10, 10, g => { g.fillStyle(0x4422FF); g.fillRect(0, 0, 10, 10); });
     tex('ico_corrupted_wood', 10, 10, g => { g.fillStyle(0x553311); g.fillRect(0, 0, 10, 10); });
     tex('ico_corrupted_stone',10, 10, g => { g.fillStyle(0x664455); g.fillRect(0, 0, 10, 10); });
+
+    // ── Dungeon entrance (cursed zone portal) ─────────────
+    tex('dungeon_entrance', 48, 48, g => {
+      g.fillStyle(0x1A0033); g.fillRect(4, 8, 40, 36);
+      g.fillStyle(0x440088, 0.9); g.fillRect(6, 10, 36, 34);
+      g.fillStyle(0xAA44FF, 0.7); g.fillRect(10, 14, 28, 26);
+      // Arch
+      g.fillStyle(0x220055); g.fillRect(4, 8, 5, 36); g.fillRect(39, 8, 5, 36);
+      g.fillStyle(0x330066); g.fillRect(4, 8, 40, 5);
+      // Inner glow
+      g.fillStyle(0xCC66FF, 0.5); g.fillEllipse(24, 27, 24, 28);
+      g.fillStyle(0xEE88FF, 0.3); g.fillEllipse(24, 27, 14, 18);
+    });
+
+    // ── Dungeon key ────────────────────────────────────────
+    tex('dungeon_key', TS, TS, g => {
+      g.fillStyle(0xAA55FF); g.fillCircle(9, 9, 7);
+      g.fillStyle(0x770099); g.fillCircle(9, 9, 4);
+      g.fillStyle(0xCC77FF); g.fillRect(14, 8, 16, 3);
+      g.fillRect(24, 11, 2, 4); g.fillRect(20, 11, 2, 3);
+    });
+
+    // ── Merchant NPC ────────────────────────────────────────
+    tex('merchant', TS, TS, g => {
+      g.fillStyle(0xFFCC66); g.fillEllipse(16, 9, 12, 12); // head
+      g.fillStyle(0x884400); g.fillRect(10, 16, 12, 14);   // body
+      g.fillStyle(0x663300); g.fillRect(10, 14, 12, 4);    // belt
+      g.fillStyle(0xFFAA33); g.fillRect(8, 18, 3, 10); g.fillRect(21, 18, 3, 10); // arms
+      g.fillStyle(0x442200); g.fillRect(12, 30, 3, 4); g.fillRect(17, 30, 3, 4); // legs
+    });
+
+    // ── Dungeon enemy textures ─────────────────────────────
+    tex('e_dungeon_sentinel', TS, TS, g => {
+      g.fillStyle(0x555577); g.fillRect(8, 10, 16, 20);
+      g.fillStyle(0x8888AA); g.fillRect(8, 10, 16, 6); // helmet
+      g.fillStyle(0x333355); g.fillRect(6, 18, 4, 14); g.fillRect(22, 18, 4, 14); // arms
+      g.fillStyle(0xAAAACC, 0.5); g.fillRect(9, 17, 2, 12); // shield shine
+    });
+    tex('e_dungeon_shade', TS, TS, g => {
+      g.fillStyle(0x220033, 0.8); g.fillEllipse(16, 18, 18, 22);
+      g.fillStyle(0x440066, 0.6); g.fillEllipse(16, 14, 10, 10);
+      g.fillStyle(0xCC44FF, 0.4); g.fillEllipse(14, 12, 4, 4);
+    });
+    tex('e_dungeon_golem', TS, TS, g => {
+      g.fillStyle(0x888888); g.fillRect(4, 6, 24, 26);
+      g.fillStyle(0xAAAA88); g.fillRect(4, 6, 24, 8); // head
+      g.fillStyle(0x666644); g.fillRect(2, 14, 4, 18); g.fillRect(26, 14, 4, 18); // arms
+      g.fillStyle(0xCCCC99, 0.3); g.fillCircle(16, 16, 5); // core glow
+    });
+    tex('e_dungeon_phantom', TS, TS, g => {
+      g.fillStyle(0x334488, 0.7); g.fillEllipse(16, 18, 16, 20);
+      g.fillStyle(0x5566CC, 0.8); g.fillEllipse(16, 12, 12, 12);
+      g.fillStyle(0x88AAFF, 0.5); g.fillEllipse(14, 10, 6, 6);
+    });
+    tex('e_vault_keeper', 45, 45, g => {
+      g.fillStyle(0x330044); g.fillRect(5, 10, 35, 30);
+      g.fillStyle(0x550066); g.fillRect(5, 10, 35, 10); // head
+      g.fillStyle(0x8800AA); g.fillCircle(22, 14, 8); // face
+      g.fillStyle(0xAA00CC, 0.6); g.fillRect(3, 20, 5, 20); g.fillRect(37, 20, 5, 20); // arms
+      g.fillStyle(0xCC44FF, 0.4); g.fillEllipse(22, 26, 16, 12); // chest orb
+    });
+
+    // ── Dungeon tower textures ─────────────────────────────
+    tex('tw_shadow_cannon', TS, TS, g => {
+      g.fillStyle(0x1A0033); g.fillRect(10, 14, 12, 17);
+      g.fillStyle(0x440066); g.fillRect(8, 10, 16, 8);
+      g.fillStyle(0x8800AA); g.fillRect(14, 4, 4, 10); // barrel
+      g.fillStyle(0xCC44FF, 0.5); g.fillCircle(16, 12, 4); // glow
+    });
+    tex('tw_spirit_totem', TS, TS, g => {
+      g.fillStyle(0x3A3A5A); g.fillRect(13, 6, 6, 24);
+      g.fillStyle(0x7788AA); g.fillCircle(16, 6, 5);
+      g.fillStyle(0x44FF88, 0.6); g.fillCircle(16, 6, 3);
+      g.fillStyle(0x44FF88, 0.2); g.fillCircle(16, 6, 8);
+      // Rings
+      g.lineStyle(1, 0x44FF88, 0.4); g.strokeCircle(16, 16, 6);
+    });
+    tex('tw_oracle_beacon', TS, TS, g => {
+      g.fillStyle(0x1A1A2A); g.fillRect(12, 16, 8, 15);
+      g.fillStyle(0xFFDD44, 0.8); g.fillCircle(16, 10, 8);
+      g.fillStyle(0xFFEE88, 0.5); g.fillCircle(16, 10, 5);
+      g.fillStyle(0xFFFFCC, 0.4); g.fillCircle(16, 10, 3);
+    });
+    tex('tw_thorn_cage', TS, TS, g => {
+      g.fillStyle(0x224400); g.fillRect(8, 12, 16, 18);
+      g.fillStyle(0x446600); g.fillRect(10, 8, 12, 6);
+      g.fillStyle(0x88AA00, 0.7); g.fillRect(14, 4, 2, 6); g.fillRect(10, 6, 2, 4); g.fillRect(18, 5, 2, 5); // thorns
+      g.lineStyle(1, 0x88CC00, 0.6); g.lineBetween(8, 14, 24, 14); g.lineBetween(8, 22, 24, 22);
+    });
+
+    // ── Consumable item icons ──────────────────────────────
+    tex('soul_bomb', TS, TS, g => {
+      g.fillStyle(0xAA00FF); g.fillCircle(16, 16, 12);
+      g.fillStyle(0x220033); g.fillCircle(16, 16, 8);
+      g.fillStyle(0xFF44FF, 0.6); g.fillCircle(13, 13, 4);
+      g.fillStyle(0xFF88FF, 0.4); g.fillCircle(12, 12, 2);
+      g.lineStyle(2, 0xCC00FF, 0.8); g.strokeCircle(16, 16, 12);
+    });
+    tex('iron_ration', TS, TS, g => {
+      g.fillStyle(0x886644); g.fillRect(6, 10, 20, 16);
+      g.fillStyle(0xAA8866); g.fillRect(6, 10, 20, 4);
+      g.fillStyle(0x664422); g.fillRect(7, 14, 18, 1); g.fillRect(7, 18, 18, 1);
+      g.fillStyle(0xFFCC44, 0.5); g.fillRect(12, 11, 6, 2); // shine
+    });
+    tex('blood_pact', TS, TS, g => {
+      g.fillStyle(0x880000); g.fillCircle(16, 16, 12);
+      g.fillStyle(0xFF2222, 0.7); g.fillCircle(16, 16, 8);
+      g.fillStyle(0xFFAAAA, 0.4); g.fillCircle(13, 13, 4);
+      g.lineStyle(1.5, 0xFF4444, 0.9); g.strokeCircle(16, 16, 12);
+    });
+    tex('temporal_shard', TS, TS, g => {
+      g.fillStyle(0x44DDFF, 0.9); g.fillTriangle(16, 4, 26, 28, 6, 28);
+      g.fillStyle(0x88EEFF, 0.5); g.fillTriangle(16, 8, 23, 25, 9, 25);
+      g.fillStyle(0xCCFFFF, 0.3); g.fillTriangle(16, 12, 21, 23, 11, 23);
+      g.lineStyle(1.5, 0x00CCFF, 0.8); g.strokeTriangle(16, 4, 26, 28, 6, 28);
+    });
+    tex('dungeon_compass', TS, TS, g => {
+      g.fillStyle(0x332200); g.fillCircle(16, 16, 13);
+      g.fillStyle(0x664400); g.fillCircle(16, 16, 10);
+      g.fillStyle(0xCC8800); g.fillCircle(16, 16, 2); // center
+      // Needle
+      g.fillStyle(0xFF4400, 0.9); g.fillTriangle(16, 16, 13, 8, 19, 8);
+      g.fillStyle(0x888888, 0.9); g.fillTriangle(16, 16, 13, 24, 19, 24);
+    });
+
+    // ── Phase blade ────────────────────────────────────────
+    tex('sword_phase', TS, TS, g => {
+      g.fillStyle(0x220044); g.fillRect(14, 2, 4, 22); // blade
+      g.fillStyle(0x8800CC, 0.8); g.fillRect(14, 2, 4, 16);
+      g.fillStyle(0xCC44FF, 0.6); g.fillRect(15, 4, 2, 12);
+      g.fillStyle(0x442255); g.fillRect(10, 20, 12, 3); // guard
+      g.fillStyle(0x220033); g.fillRect(14, 23, 4, 7); // handle
+      g.fillStyle(0xEE88FF, 0.4); g.fillRect(14, 2, 4, 8); // shimmer
+    });
   }
 }

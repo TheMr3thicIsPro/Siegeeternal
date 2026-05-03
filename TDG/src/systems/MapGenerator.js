@@ -1,7 +1,7 @@
 // ============================================================
 // MapGenerator — procedural map creation
 // ============================================================
-import { TS, MW, MH, RESOURCE_NODES, CHEST_DEFS, CURSED_RESOURCE_NODES } from '../constants.js';
+import { TS, MW, MH, RESOURCE_NODES, CHEST_DEFS, CURSED_RESOURCE_NODES, DUNGEON_W, DUNGEON_H } from '../constants.js';
 import { valueNoise, fbmNoise } from '../utils.js';
 
 // River cuts across ~30% from top. Player spawns at row 30 (centre).
@@ -79,6 +79,7 @@ export class MapGenerator {
     this._spawnNodes(seed, cx, cy, riverTop, riverBot);
     this._spawnCursedNodes(seed, riverTop);
     this._placeCaveEntrance(seed, cx, cy, riverTop, riverBot);
+    this._placeDungeonEntrance(seed, riverTop);
     this._buildRiverWalls(riverTop, riverBot);
     this._placeChests(seed, cx, cy, riverTop, riverBot);
     this._placeStarterChest(cx, cy);
@@ -290,6 +291,45 @@ export class MapGenerator {
       scene.tweens.add({ targets: lbl, alpha: { from: 0.6, to: 1 }, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
       chest.label = lbl;
     });
+  }
+
+  /** Place the dungeon entrance in the cursed zone (north of river) */
+  _placeDungeonEntrance(seed, riverTop) {
+    const scene = this.scene;
+    // Deterministic position in cursed zone, away from borders
+    let tx = 4 + (Math.abs(seed * 5 + 91) % (MW - 8));
+    let ty = 2 + (Math.abs(seed * 13 + 47) % Math.max(1, riverTop - 4));
+    tx = Math.max(3, Math.min(MW - 4, tx));
+    ty = Math.max(2, Math.min(riverTop - 2, ty));
+
+    // Find nearest clear cell
+    let found = null;
+    outer: for (let r = 0; r <= 10; r++) {
+      for (let dx2 = -r; dx2 <= r; dx2++) {
+        for (let dy2 = -r; dy2 <= r; dy2++) {
+          if (Math.abs(dx2) !== r && Math.abs(dy2) !== r) continue;
+          const x = tx + dx2, y = ty + dy2;
+          if (x < 2 || y < 1 || x >= MW - 2 || y >= riverTop - 1) continue;
+          const cell = scene.mapData[y]?.[x];
+          if (!cell) continue;
+          if (cell.terrain === 'bwall' || cell.terrain === 'river') continue;
+          if (cell.resource || cell.structure || cell.isCaveEntrance || cell.isChest) continue;
+          found = { x, y };
+          break outer;
+        }
+      }
+    }
+    if (!found) return;
+
+    const { x, y } = found;
+    scene.mapData[y][x].isDungeonEntrance = true;
+    scene.dungeonEntranceTile = { x, y };
+
+    scene.add.sprite(x * TS + TS / 2, y * TS + TS / 2, 'dungeon_entrance').setDepth(3);
+    const lbl = scene.add.text(x * TS + TS / 2, y * TS - 12, 'DUNGEON [E]', {
+      fontSize: '10px', color: '#AA55FF', fontStyle: 'bold', stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5, 1).setDepth(4);
+    scene.tweens.add({ targets: lbl, alpha: { from: 0.5, to: 1 }, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }
 
   /** Place a single free starter chest a few tiles east of spawn */

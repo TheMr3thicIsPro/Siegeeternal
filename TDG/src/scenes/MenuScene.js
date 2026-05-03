@@ -1,7 +1,7 @@
 // ============================================================
 // MenuScene — main menu with 3 save slots
 // ============================================================
-import { VW, VH } from '../constants.js';
+import { VW, VH, CHALLENGE_MODS } from '../constants.js';
 import { metaProgression } from '../systems/MetaProgression.js';
 import { settingsStore }   from '../systems/SettingsStore.js';
 import { soundMgr }        from '../systems/SoundManager.js';
@@ -9,9 +9,10 @@ import { soundMgr }        from '../systems/SoundManager.js';
 const SLOT_KEYS = ['siege_eternal_save_1', 'siege_eternal_save_2', 'siege_eternal_save_3'];
 
 // ── Version history ───────────────────────────────────────
-export const CURRENT_VERSION = 'v0.11.4';
+export const CURRENT_VERSION = 'v0.12.0';
 
 const VERSION_HISTORY = [
+  { ver: 'v0.12.0', date: 'May 2026', notes: 'Player levels + XP · Contracts system · Achievements · Dungeon (cursed zone, key drop, boss, blueprints) · Merchant NPC (20% night) · Challenge mods (1HP/No Towers/Relentless/Scarce) · 4 dungeon towers · 4 consumable items · Phase Blade weapon' },
   { ver: 'v0.11.4', date: 'May 2026', notes: 'Dummy Statue decoy (200px enemy attractor) · Raids no longer spawn arrow towers · Codex item-loss bug fixed (sleep/wake) · Bone Chestplate stealth 200px · Chests reset every day' },
   { ver: 'v0.11.3', date: 'Apr 2026', notes: 'Codex full audit: blueprint text fixed · weapons tab · machines · cursed zone · relics · all chest types · 9 perk corrections' },
   { ver: 'v0.11.2', date: 'Apr 2026', notes: 'Hotbar removed · All armour in one tab (4×5 grid) · ~ key toggles labels · Blueprint towers in Codex with weaknesses & purple style' },
@@ -223,10 +224,34 @@ export class MenuScene extends Phaser.Scene {
       }).setOrigin(0.5, 0.5);
     }
 
+    // Challenge mod toggles for new game only
+    const activeMods = {};
+    if (!hasSave) {
+      const modKeys = Object.keys(CHALLENGE_MODS);
+      modKeys.forEach((modKey, mi) => {
+        const mod  = CHALLENGE_MODS[modKey];
+        const mx   = cx - 242 + mi * 120;
+        const modTxt = this.add.text(mx, y + 50, `[  ] ${mod.name}`, {
+          fontSize: '8px', fill: '#555577', fontFamily: 'monospace',
+          backgroundColor: '#0A0A18', padding: { x: 3, y: 2 },
+        }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+        modTxt.on('pointerdown', (ptr) => {
+          ptr.event.stopPropagation();
+          activeMods[modKey] = !activeMods[modKey];
+          modTxt.setText(activeMods[modKey] ? `[X] ${mod.name}` : `[  ] ${mod.name}`);
+          modTxt.setStyle({ fill: activeMods[modKey] ? '#FF9944' : '#555577' });
+        });
+      });
+    }
+
     panel.on('pointerdown', () => {
       this.cameras.main.fadeOut(400, 0, 0, 0);
       this.time.delayedCall(400, () => {
-        this.scene.start('Game', { newGame: !hasSave, slotId, hardcore: !hasSave ? isHardcore : (save?.isHardcore ?? false) });
+        this.scene.start('Game', {
+          newGame: !hasSave, slotId,
+          hardcore: !hasSave ? isHardcore : (save?.isHardcore ?? false),
+          challengeMods: !hasSave ? activeMods : (save?.challengeMods ?? {}),
+        });
       });
     });
 

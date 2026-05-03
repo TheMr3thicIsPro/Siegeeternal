@@ -274,12 +274,13 @@ export const BED_DEF = { name: 'Bed', cost: { wood: 8, stone: 4 }, tex: 'bed', d
 
 // Swords — crafted weapons, grant attack damage
 export const SWORD_DEFS = {
-  wood:    { name: 'Wood Sword',    cost: { wood: 8                        }, dmg: 17,  tex: 'sword_wood'    },
-  stone:   { name: 'Stone Sword',   cost: { stone: 6                       }, dmg: 29,  tex: 'sword_stone'   },
-  iron:    { name: 'Iron Sword',    cost: { iron: 5                        }, dmg: 46,  tex: 'sword_iron'    },
-  crystal: { name: 'Crystal Sword', cost: { crystal: 4, iron: 2            }, dmg: 81,  tex: 'sword_crystal' },
-  ruby:    { name: 'Ruby Sword',    cost: { ruby: 2, wood: 1               }, dmg: 95,  tex: 'sword_ruby',   attackCooldown: 250 },
-  emerald: { name: 'Emerald Sword', cost: { emerald: 2, wood: 1            }, dmg: 140, tex: 'sword_emerald' },
+  wood:        { name: 'Wood Sword',    cost: { wood: 8                              }, dmg: 17,  tex: 'sword_wood'    },
+  stone:       { name: 'Stone Sword',   cost: { stone: 6                             }, dmg: 29,  tex: 'sword_stone'   },
+  iron:        { name: 'Iron Sword',    cost: { iron: 5                              }, dmg: 46,  tex: 'sword_iron'    },
+  crystal:     { name: 'Crystal Sword', cost: { crystal: 4, iron: 2                  }, dmg: 81,  tex: 'sword_crystal' },
+  ruby:        { name: 'Ruby Sword',    cost: { ruby: 2, wood: 1                     }, dmg: 95,  tex: 'sword_ruby',   attackCooldown: 250 },
+  emerald:     { name: 'Emerald Sword', cost: { emerald: 2, wood: 1                  }, dmg: 140, tex: 'sword_emerald' },
+  phase_blade: { name: 'Phase Blade',   cost: { void_shards: 5, crystal: 5, souls: 10 }, dmg: 180, tex: 'sword_phase', attackCooldown: 400, phaseHit: true, desc: 'Phases through armor. Dungeon-forged.' },
 };
 
 export const BOW_DEF          = { name: 'Bow',          cost: { wood: 10, bone: 5                           }, dmg: 20, tex: 'bow',         autoFire: 2000 };
@@ -335,6 +336,63 @@ export const SET_BONUS_DEFS = {
   bone:    { name: '👻 Ghost Dancer',  desc: '20% chance enemies completely ignore you',               ghostChance: 0.20                     },
   iron:    { name: '⚙ Iron Fortress', desc: 'Flat 8 damage reduction (applied after armor)',           flatReduce: 8                          },
   crystal: { name: '❄ Arcane Flow',   desc: '-20% all cooldowns · -20% crafting costs',               cdReduction: 0.20, craftDiscount: 0.20 },
+};
+
+// ── Dungeon ───────────────────────────────────────────────
+export const DUNGEON_W = 30;
+export const DUNGEON_H = 30;
+export const DUNGEON_KEY_DROP_CHANCE = 0.02; // 2% from any surface/night enemy
+
+Object.assign(ENEMY_DEFS, {
+  dungeon_sentinel: { name: 'Sentinel',        hp: 220,  spd: 25,  dmg: 30, sz: 18, drop: { iron: 2, bone: 3               }, armor: 12, dungeon: true },
+  dungeon_shade:    { name: 'Dungeon Shade',   hp: 80,   spd: 110, dmg: 28, sz: 11, drop: { crystal: 1, bone: 2            }, invis: true, dungeon: true },
+  dungeon_golem:    { name: 'Stone Golem',     hp: 500,  spd: 18,  dmg: 45, sz: 22, drop: { iron: 5, stone: 10, gold: 3   }, armor: 20, dungeon: true },
+  dungeon_phantom:  { name: 'Dungeon Phantom', hp: 160,  spd: 65,  dmg: 35, sz: 14, drop: { crystal: 2, souls: 2          }, phaseShift: true, regen: 1.5, dungeon: true },
+  vault_keeper:     { name: 'Vault Keeper',    hp: 8000, spd: 40,  dmg: 55, sz: 45, drop: { crystal: 15, ruby: 5, emerald: 5, gold: 30, souls: 20 }, boss: true, dungeon: true, spawns: 'dungeon_sentinel' },
+});
+
+export const DUNGEON_ENEMY_POOL = ['dungeon_sentinel', 'dungeon_shade', 'dungeon_golem', 'dungeon_phantom'];
+
+// ── Dungeon-exclusive blueprints (found inside Dungeon only) ─
+Object.assign(BLUEPRINT_DEFS, {
+  shadow_cannon: { name: 'Shadow Cannon', desc: 'Unlocks Shadow Cannon tower',  type: 'tower', dungeonOnly: true },
+  spirit_totem:  { name: 'Spirit Totem',  desc: 'Unlocks Spirit Totem tower',   type: 'tower', dungeonOnly: true },
+  oracle_beacon: { name: 'Oracle Beacon', desc: 'Unlocks Oracle Beacon tower',  type: 'tower', dungeonOnly: true },
+  thorn_cage:    { name: 'Thorn Cage',    desc: 'Unlocks Thorn Cage tower',     type: 'tower', dungeonOnly: true },
+});
+
+// ── Dungeon-exclusive towers (blueprint required) ─────────
+export const DUNGEON_TOWER_DEFS = {
+  shadow_cannon: { name: 'Shadow Cannon', blueprint: 'shadow_cannon', cost: { void_shards: 4, crystal: 6, souls: 10      }, range: 160, rate: 2000, dmg: 90, dayOn: true, nightOn: true, tex: 'tw_shadow_cannon', desc: 'Pierce + ignores armor',       pierce: true, armorIgnore: true },
+  spirit_totem:  { name: 'Spirit Totem',  blueprint: 'spirit_totem',  cost: { crystal: 8, souls: 12, bone: 20            }, range: 96,  rate: 0,    dmg: 0,  dayOn: true, nightOn: true, tex: 'tw_spirit_totem',  desc: 'Heals nearby towers 1 HP/s',  healNearby: 1, healRadius: 96 },
+  oracle_beacon: { name: 'Oracle Beacon', blueprint: 'oracle_beacon', cost: { crystal: 10, gold: 8, iron: 6              }, range: 160, rate: 0,    dmg: 0,  dayOn: true, nightOn: true, tex: 'tw_oracle_beacon', desc: 'Reveals invis + buffs +15% dmg nearby', revealRadius: 160, buffNearby: 0.15 },
+  thorn_cage:    { name: 'Thorn Cage',    blueprint: 'thorn_cage',    cost: { iron: 8, crystal: 4, cursed_essence: 3     }, range: 48,  rate: 500,  dmg: 15, dayOn: true, nightOn: true, tex: 'tw_thorn_cage',    desc: 'Short-range AoE field, hits all nearby', aoe: 48 },
+};
+
+// Dungeon chest — big loot, only one per dungeon run
+Object.assign(CHEST_DEFS, {
+  dungeon: {
+    keyItem: null, label: 'Dungeon Chest',
+    rewards: { crystal: 20, ruby: 8, emerald: 8, gold: 40, souls: 25, void_shards: 3 },
+    dungeonOnly: true,
+  },
+});
+
+// ── Consumable items (gameplay-changing, not basic resources) ─
+export const CONSUMABLE_DEFS = {
+  soul_bomb:       { name: 'Soul Bomb',       cost: { souls: 20, crystal: 5                    }, tex: 'soul_bomb',       desc: 'Explode — kills all enemies within 120px',    radius: 120,  cat: 'consumable' },
+  iron_ration:     { name: 'Iron Ration',     cost: { iron: 5, cooked_meat: 2                  }, tex: 'iron_ration',     desc: '+15 flat armor for 30s',                       armorBoost: 15, duration: 30000, cat: 'consumable' },
+  blood_pact:      { name: 'Blood Pact',      cost: { souls: 15, ruby: 2                       }, tex: 'blood_pact',      desc: 'Spend 30 HP — triple damage for 10s',          hpCost: 30, dmgMult: 3, duration: 10000, cat: 'consumable' },
+  temporal_shard:  { name: 'Temporal Shard',  cost: { crystal: 6, void_shards: 2               }, tex: 'temporal_shard',  desc: 'Freeze all enemies for 5s',                    duration: 5000, cat: 'consumable' },
+  dungeon_compass: { name: 'Dungeon Compass', cost: {},                                          tex: 'dungeon_compass',  desc: 'Points toward the Dungeon entrance (found)',   found: true,  cat: 'consumable' },
+};
+
+// ── Challenge modifiers (selected at new game — multiplicative soul bonuses) ─
+export const CHALLENGE_MODS = {
+  hp1:        { name: '1 HP',       desc: 'Start with 1 max HP',              soulMult: 5.0 },
+  no_towers:  { name: 'No Towers',  desc: 'Cannot place towers or walls',     soulMult: 3.0 },
+  relentless: { name: 'Relentless', desc: 'Enemies spawn continuously',       soulMult: 2.0 },
+  scarce:     { name: 'Scarce',     desc: '0.5× all resource drops',          soulMult: 2.0 },
 };
 
 // Map themes — chosen randomly on new game (stored in save)
