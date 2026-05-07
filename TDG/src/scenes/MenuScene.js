@@ -9,9 +9,10 @@ import { soundMgr }        from '../systems/SoundManager.js';
 const SLOT_KEYS = ['siege_eternal_save_1', 'siege_eternal_save_2', 'siege_eternal_save_3'];
 
 // ── Version history ───────────────────────────────────────
-export const CURRENT_VERSION = 'v0.13.1';
+export const CURRENT_VERSION = 'v0.13.2';
 
 const VERSION_HISTORY = [
+  { ver: 'v0.13.2', date: 'May 2026', notes: 'Supabase connected — multiplayer HOST/JOIN now live · Supabase CDN loaded in index.html' },
   { ver: 'v0.13.1', date: 'May 2026', notes: 'Fix: save after craft (no more equipment loss) · Fix: no_towers challenge enforced · Fix: achievements overlay layout · Fix: playerMaxHP saved/restored · Multiplayer co-op via Supabase (HOST/JOIN lobby)' },
   { ver: 'v0.13.0', date: 'May 2026', notes: 'Ruby Bow (fast/15dmg) + Emerald Bow (heavy/45dmg) · Arrow animation · Bridge persistence fix · Trap chest fix · Boss safe-edge spawn · Cave 60% darker w/o torch · Level-up auto-bonus (+10 HP) · Concrete contracts · 30+ achievements · Revive sound+effect · Death cause screen · Achievements menu · Resource regen every 3 days · Bed 2× speed' },
   { ver: 'v0.12.0', date: 'May 2026', notes: 'Player levels + XP · Contracts system · Achievements · Dungeon (cursed zone, key drop, boss, blueprints) · Merchant NPC (20% night) · Challenge mods (1HP/No Towers/Relentless/Scarce) · 4 dungeon towers · 4 consumable items · Phase Blade weapon' },

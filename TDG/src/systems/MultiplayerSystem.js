@@ -1,8 +1,8 @@
 // ============================================================
 // MultiplayerSystem — Supabase Realtime 2-player co-op
 // ============================================================
-const SUPABASE_URL = 'https://your-project.supabase.co';   // placeholder
-const SUPABASE_ANON_KEY = 'your-anon-key';                  // placeholder
+const SUPABASE_URL = 'https://wvtfclnogquradgdqoae.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind2dGZjbG5vZ3F1cmFkZ2Rxb2FlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxNDM3NDcsImV4cCI6MjA5MzcxOTc0N30.25N3yb_rsAKeNoixTuJsLEml6B0egyQI5nzgZ8LEg7E';
 
 export class MultiplayerSystem {
   constructor() {
