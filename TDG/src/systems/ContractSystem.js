@@ -10,7 +10,7 @@ export class ContractSystem {
 
   /** Call at start of each run to generate 3 contracts. */
   generateContracts(wave) {
-    const pool = this._buildPool(wave);
+    const pool = this._buildPool();
     const shuffled = pool.sort(() => Math.random() - 0.5);
     this.contracts = shuffled.slice(0, 3).map(c => ({ ...c, progress: 0, done: false, rewarded: false }));
     this._buildPanel();
@@ -48,19 +48,23 @@ export class ContractSystem {
     s.time.delayedCall(2500, () => text?.destroy());
   }
 
-  _buildPool(wave) {
-    const w = wave ?? 1;
+  _buildPool() {
     return [
-      { type: 'kills',       name: 'Slayer',        goal: 40 + w * 5,  reward: { gold: 15, souls: 5  }, desc: `Kill ${40 + w * 5} enemies` },
-      { type: 'kills',       name: 'Veteran',       goal: 80 + w * 8,  reward: { gold: 25, crystal: 3 }, desc: `Kill ${80 + w * 8} enemies` },
-      { type: 'boss_kills',  name: 'Boss Bane',     goal: 1,           reward: { gold: 30, souls: 10 }, desc: 'Kill 1 boss' },
-      { type: 'waves',       name: 'Survivor',      goal: 5,           reward: { iron: 15, bone: 20  }, desc: 'Survive 5 waves' },
-      { type: 'harvest',     name: 'Gatherer',      goal: 80,          reward: { gold: 10, souls: 3  }, desc: 'Harvest 80 resources' },
-      { type: 'crafts',      name: 'Crafter',       goal: 10,          reward: { crystal: 5, gold: 8 }, desc: 'Craft 10 items' },
-      { type: 'towers_built',name: 'Builder',       goal: 5,           reward: { iron: 10, stone: 20 }, desc: 'Build 5 towers' },
-      { type: 'caves_entered',name: 'Explorer',     goal: 1,           reward: { ruby: 1, emerald: 1 }, desc: 'Enter a cave' },
-      { type: 'dungeon_cleared', name: 'Dungeon Run', goal: 1,         reward: { void_shards: 3, souls: 20, gold: 50 }, desc: 'Clear the Dungeon' },
-      { type: 'night_survived', name: 'Night Owl',  goal: 3,           reward: { souls: 8, bone: 15  }, desc: 'Survive 3 nights' },
+      { type: 'kills',          name: 'Slayer',        goal: 100,  reward: { gold: 20, souls: 10   }, desc: 'Kill 100 enemies' },
+      { type: 'kills',          name: 'Veteran',       goal: 250,  reward: { gold: 40, crystal: 5  }, desc: 'Kill 250 enemies' },
+      { type: 'kills',          name: 'Reaper',        goal: 500,  reward: { gold: 80, ruby: 3      }, desc: 'Kill 500 enemies' },
+      { type: 'boss_kills',     name: 'Boss Bane',     goal: 1,    reward: { gold: 30, souls: 20   }, desc: 'Kill 1 boss' },
+      { type: 'boss_kills',     name: 'Boss Hunter',   goal: 3,    reward: { gold: 60, emerald: 3  }, desc: 'Kill 3 bosses' },
+      { type: 'waves',          name: 'Survivor',      goal: 5,    reward: { iron: 15, bone: 20    }, desc: 'Survive 5 nights' },
+      { type: 'waves',          name: 'Night Owl',     goal: 10,   reward: { iron: 30, crystal: 3  }, desc: 'Survive 10 nights' },
+      { type: 'harvest',        name: 'Gatherer',      goal: 100,  reward: { gold: 12, souls: 5    }, desc: 'Harvest 100 resources' },
+      { type: 'harvest',        name: 'Forager',       goal: 300,  reward: { gold: 25, coal: 20    }, desc: 'Harvest 300 resources' },
+      { type: 'crafts',         name: 'Crafter',       goal: 10,   reward: { crystal: 5, gold: 10  }, desc: 'Craft 10 items' },
+      { type: 'crafts',         name: 'Artisan',       goal: 25,   reward: { crystal: 12, ruby: 2  }, desc: 'Craft 25 items' },
+      { type: 'towers_built',   name: 'Builder',       goal: 5,    reward: { iron: 10, stone: 20   }, desc: 'Build 5 towers' },
+      { type: 'towers_built',   name: 'Architect',     goal: 15,   reward: { iron: 25, gold: 15    }, desc: 'Build 15 towers' },
+      { type: 'caves_entered',  name: 'Explorer',      goal: 1,    reward: { ruby: 1, emerald: 1   }, desc: 'Enter a cave' },
+      { type: 'dungeon_cleared',name: 'Dungeon Run',   goal: 1,    reward: { void_shards: 3, souls: 25, gold: 60 }, desc: 'Clear the Dungeon' },
     ];
   }
 

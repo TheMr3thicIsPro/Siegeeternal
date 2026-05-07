@@ -9,6 +9,7 @@ export class GameOverScene extends Phaser.Scene {
   init(data) {
     this.waveReached = data?.wave ?? 0;
     this.slotId      = data?.slotId ?? 1;
+    this.deathCause  = data?.deathCause ?? null;
   }
 
   create() {
@@ -25,7 +26,13 @@ export class GameOverScene extends Phaser.Scene {
       fontSize: '18px', fill: '#EDE0C4', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
-    this.add.text(cx, cy - 48, 'Your world has been lost.', {
+    if (this.deathCause) {
+      this.add.text(cx, cy - 50, `Killed by: ${this.deathCause}`, {
+        fontSize: '14px', fill: '#FF6655', fontFamily: 'monospace', fontStyle: 'italic',
+      }).setOrigin(0.5);
+    }
+
+    this.add.text(cx, cy - (this.deathCause ? 30 : 48), 'Your world has been lost.', {
       fontSize: '13px', fill: '#882222', fontFamily: 'monospace',
       fontStyle: 'italic',
     }).setOrigin(0.5);

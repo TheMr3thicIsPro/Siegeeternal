@@ -170,6 +170,18 @@ export class DungeonScene extends Phaser.Scene {
       attack: 'L', interact: 'E', esc: 'ESC',
     });
     this.input.keyboard.on('keydown-ESC', () => this._flee());
+    this.input.keyboard.on('keydown-L', () => {
+      // Attack toward closest enemy or straight ahead
+      let target = null, nearD = Infinity;
+      for (const e of this._enemies ?? []) {
+        if (!e.alive) continue;
+        const d = Math.hypot(e.sprite.x - this._player.x, e.sprite.y - this._player.y);
+        if (d < nearD) { nearD = d; target = e; }
+      }
+      const wx = target ? target.sprite.x : this._player.x + 32;
+      const wy = target ? target.sprite.y : this._player.y;
+      this._meleeAttack(wx, wy);
+    });
     this.input.on('pointerdown', (ptr) => this._meleeAttack(ptr.worldX, ptr.worldY));
   }
 

@@ -9,7 +9,7 @@ import {
   TOWER_DEFS, MACHINE_DEFS, WALL_DEFS, SWORD_DEFS, ARMOR_DEFS,
   PICKAXE_DEF, STONE_PICKAXE_DEF, IRON_PICKAXE_DEF, CRYSTAL_PICKAXE_DEF,
   EMERALD_PICKAXE_DEF, RUBY_PICKAXE_DEF,
-  BED_DEF, BOW_DEF, BOW_UPGRADED_DEF,
+  BED_DEF, BOW_DEF, RUBY_BOW_DEF, EMERALD_BOW_DEF,
   REGEN_TOKEN_DEF, SPEED_BOOTS_DEF, UNCURSE_TOKEN_DEF,
   PICKAXE_TIERS, TORCH_DEF,
   CURSED_TOWER_DEFS, DUNGEON_TOWER_DEFS, BRIDGE_DEF,
@@ -53,8 +53,9 @@ const GEAR_DEF = {
   sword_ruby:    { ...SWORD_DEFS.ruby,       desc: `Dmg: ${SWORD_DEFS.ruby.dmg} fast`,    cat: 'weapon' },
   sword_emerald: { ...SWORD_DEFS.emerald,    desc: `Dmg: ${SWORD_DEFS.emerald.dmg}`,      cat: 'weapon' },
   sword_phase:   { ...SWORD_DEFS.phase_blade,desc: `Dmg: ${SWORD_DEFS.phase_blade.dmg} ignores armor`, cat: 'weapon' },
-  bow:           { ...BOW_DEF,               desc: `Auto ${BOW_DEF.dmg}dmg/2s`,            cat: 'weapon' },
-  bow_upgraded:  { ...BOW_UPGRADED_DEF,      desc: `Auto ${BOW_UPGRADED_DEF.dmg}dmg/1.2s`, cat: 'weapon' },
+  bow:           { ...BOW_DEF,          desc: `Auto ${BOW_DEF.dmg}dmg/2s`,                    cat: 'weapon' },
+  ruby_bow:      { ...RUBY_BOW_DEF,     desc: `Auto ${RUBY_BOW_DEF.dmg}dmg/0.8s  fast`,     cat: 'weapon' },
+  emerald_bow:   { ...EMERALD_BOW_DEF,  desc: `Auto ${EMERALD_BOW_DEF.dmg}dmg/3s  heavy`,   cat: 'weapon' },
 };
 
 // All armour pieces — chest + helmet + pants + boots (20 items, 4×5 grid)
@@ -657,6 +658,12 @@ export class HUD {
       return;
     }
 
+    // No Towers challenge mode — block tower/wall crafting
+    if (this.scene.challengeMods?.no_towers && (cat === 'tower' || cat === 'wall')) {
+      this.showMsg('No Towers mode — towers and walls cannot be crafted!', 2000);
+      return;
+    }
+
     // Helmet slot
     if (cat === 'helmet') {
       Object.entries(scaledCost).forEach(([r, n]) => { inv[r] -= n; });
@@ -667,6 +674,7 @@ export class HUD {
       const setMsg = bonus ? `  🎉 ${bonus.name}!` : '';
       this.showMsg(`Equipped: ${def.name}${setMsg}`, 3000);
       this._refreshSlots();
+      this.scene.saveGame?.();
       return;
     }
 
@@ -680,6 +688,7 @@ export class HUD {
       const setMsg = bonus ? `  🎉 ${bonus.name}!` : '';
       this.showMsg(`Equipped: ${def.name}${setMsg}`, 3000);
       this._refreshSlots();
+      this.scene.saveGame?.();
       return;
     }
 
@@ -694,6 +703,7 @@ export class HUD {
       const setMsg = bonus ? `  🎉 ${bonus.name}!` : '';
       this.showMsg(`Equipped: ${def.name}${setMsg}`, 3000);
       this._refreshSlots();
+      this.scene.saveGame?.();
       return;
     }
 
@@ -707,8 +717,8 @@ export class HUD {
         const curTier = PICKAXE_TIERS[this.scene.pickaxeKey] ?? 0;
         if (myTier > 0 && curTier >= myTier) { this.showMsg('Already have equal or better pickaxe!', 2000); return; }
       }
-      // bow_upgraded requires bow already in bow slot
-      if (key === 'bow_upgraded' && this.scene.bow !== 'bow') {
+      // ruby_bow / emerald_bow require bow already equipped
+      if ((key === 'ruby_bow' || key === 'emerald_bow') && !this.scene.bow) {
         this.showMsg('Requires Bow equipped first!', 2000); return;
       }
       Object.entries(scaledCost).forEach(([r, n]) => { inv[r] -= n; });
@@ -721,7 +731,7 @@ export class HUD {
       if (key === 'regen_token')   { this.scene._repairAllTowers?.(); this._refreshSlots(); return; }
       if (key === 'uncurse_token') { inv.uncurse_token = (inv.uncurse_token || 0) + 1; this.showMsg('Uncurse Token crafted — press E near a corrupted tower to cleanse it!', 4000); this._refreshSlots(); return; }
       if (cat === 'weapon') {
-        if (key === 'bow' || key === 'bow_upgraded') {
+        if (key === 'bow' || key === 'ruby_bow' || key === 'emerald_bow') {
           // Bow goes in its own slot — sword stays unaffected
           this.scene.bow = key;
         } else {
@@ -742,6 +752,7 @@ export class HUD {
         this._recalcArmor();
       }
       this.showMsg(`Crafted: ${def.name}`, 2000);
+      this.scene.saveGame?.();
       this._refreshSlots();
       return;
     }
@@ -825,8 +836,9 @@ export class HUD {
     // Weapon line
     const swordLabel = s.weapon ? s.weapon.replace('sword_', '').replace('_', ' ') + ' sword' : 'unarmed';
     let bowLabel = '';
-    if      (s.bow === 'bow_upgraded') bowLabel = '+ upgd.bow';
-    else if (s.bow === 'bow')          bowLabel = '+ bow';
+    if      (s.bow === 'ruby_bow')    bowLabel = '+ ruby bow';
+    else if (s.bow === 'emerald_bow') bowLabel = '+ em.bow';
+    else if (s.bow === 'bow')         bowLabel = '+ bow';
     this._weaponTxt.setText(bowLabel ? `${swordLabel}  ${bowLabel}` : swordLabel);
     // Armor lines
     const armorBase = s.armor ? s.armor.replace('armor_', '') + ' chest' : 'no chest';

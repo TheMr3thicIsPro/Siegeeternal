@@ -23,6 +23,17 @@ export class EnemyManager {
     this.spawnAt(key, ex, ey);
   }
 
+  /** Spawn a boss at edges 1-3 only (right/bottom/left), avoiding cursed north edge */
+  spawnBossAtSafeEdge(key) {
+    const edge = 1 + Math.floor(Math.random() * 3);
+    let ex, ey;
+    const rnd = () => Phaser.Math.Between(2, MW - 3) * TS + TS / 2;
+    if      (edge === 1) { ex = (MW - 2) * TS + TS / 2; ey = rnd(); }
+    else if (edge === 2) { ex = rnd();             ey = (MH - 2) * TS + TS / 2; }
+    else                 { ex = TS + TS / 2;       ey = rnd(); }
+    this.spawnAt(key, ex, ey);
+  }
+
   /** Spawn an enemy at an explicit world position */
   spawnAt(key, wx, wy, overrideDef = null) {
     const scene = this.scene;
@@ -385,6 +396,7 @@ export class EnemyManager {
           // Iron set bonus: flat 8 damage reduction (applied after armor)
           if (_armorSet === 'iron') armored = Math.max(0, armored - 8);
           scene.playerHP    = Math.max(0, scene.playerHP - armored);
+          scene._lastDamageSource = def.name ?? enemy.key ?? 'Unknown';
           scene.cameras.main.shake(100, 0.003);
           sp.setTint(0xFF4444);
           scene.time.delayedCall(120, () => { if (sp.active) sp.clearTint(); });
@@ -550,9 +562,13 @@ export class EnemyManager {
     // Player level XP
     scene.playerLevelSys?.addXP(enemy);
 
-    // Contract kill progress
+    // Contract kill progress + achievement tracking
     scene.contractSys?.progress('kills', 1);
     if (enemy.def.boss) scene.contractSys?.progress('boss_kills', 1);
+    scene._totalKills = (scene._totalKills ?? 0) + 1;
+    if (scene._totalKills === 1)    scene.events?.emit('achievement_check', 'first_blood');
+    if (scene._totalKills >= 100)   scene.events?.emit('achievement_check', 'kills_100');
+    if (scene._totalKills >= 1000)  scene.events?.emit('achievement_check', 'kills_1000');
 
     const isBounty = scene.waveMgr?.isBountyRound ?? false;
     const relicMult = scene.relicSys?.dropMult() ?? 1;

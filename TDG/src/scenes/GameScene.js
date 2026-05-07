@@ -23,6 +23,7 @@ import { PlayerLevelSystem }   from '../systems/PlayerLevelSystem.js';
 import { ContractSystem }      from '../systems/ContractSystem.js';
 import { MerchantSystem }      from '../systems/MerchantSystem.js';
 import { achievementSys }      from '../systems/AchievementSystem.js';
+import { multiplayerSys }      from '../systems/MultiplayerSystem.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
@@ -33,6 +34,13 @@ export class GameScene extends Phaser.Scene {
     this.saveSlotKey    = `siege_eternal_save_${this.slotId}`;
     this.isHardcore     = data?.hardcore ?? false;
     this.challengeMods  = data?.challengeMods ?? {};
+    this.multiplayer    = data?.multiplayer   ?? false;
+    this.mpIsHost       = data?.isHost        ?? false;
+    this.mpRoomCode     = data?.mpRoomCode    ?? null;
+    this.mpSeed         = data?.mpSeed        ?? null;
+    this._mpStateTimer  = 0;
+    this._partnerSprite = null;
+    this._partnerHP     = null;
   }
 
   // ============================================================
@@ -41,7 +49,7 @@ export class GameScene extends Phaser.Scene {
   create() {
     // ── Shared state ──────────────────────────────────────
     // Use saved seed + theme if they exist (must happen before mapGen.generate)
-    this.seed     = Math.floor(Math.random() * 999999);
+    this.seed     = this.multiplayer && this.mpSeed ? this.mpSeed : Math.floor(Math.random() * 999999);
     this.mapTheme = MAP_THEMES[Math.floor(Math.random() * MAP_THEMES.length)];
     if (!this.isNewGame) {
       try {
@@ -86,8 +94,10 @@ export class GameScene extends Phaser.Scene {
     // Cave entrance position (set by MapGenerator)
     this.caveEntranceTile   = null;
     this._caveTransitioning = false;
-    this._bowTimer      = 0;
-    this._regenTimer    = 0;
+    this._bowTimer          = 0;
+    this._regenTimer        = 0;
+    this._lastDamageSource  = null;
+    this._bridges           = [];
     this._harvestBusy   = false;
     this.cursedTiles    = new Set();
     this.traps          = [];
@@ -200,6 +210,11 @@ export class GameScene extends Phaser.Scene {
         this.hud.showMsg('CHALLENGE: 1 HP Mode active!', 5000);
       }
     }
+
+    // Multiplayer setup
+    if (this.multiplayer) {
+      this._initMultiplayer();
+    }
   }
 
   // ============================================================
@@ -234,6 +249,50 @@ export class GameScene extends Phaser.Scene {
 
     if (this.invincible > 0) this.invincible -= delta;
     this.playerMP = Math.min(this.playerMaxMP, this.playerMP + delta * 0.01);
+
+    // Multiplayer state sync
+    if (this.multiplayer && multiplayerSys._ready) {
+      this._mpStateTimer = (this._mpStateTimer ?? 0) + delta;
+      if (this._mpStateTimer > 100) {
+        this._mpStateTimer = 0;
+        multiplayerSys.sendState(this.player.x, this.player.y, this.playerHP, this.wave);
+      }
+    }
+  }
+
+  // ============================================================
+  // MULTIPLAYER
+  // ============================================================
+  _initMultiplayer() {
+    // Partner sprite (simple white rectangle)
+    this._partnerSprite = this.add.rectangle(0, 0, 28, 28, 0x88BBFF, 0.8).setDepth(6).setVisible(false);
+    this._partnerHPBar  = this.add.rectangle(0, 0, 28, 4, 0x44FF44).setDepth(7).setVisible(false);
+    this._partnerLabel  = this.add.text(0, 0, 'P2', {
+      fontSize: '8px', fill: '#88BBFF', fontFamily: 'monospace',
+    }).setDepth(7).setVisible(false);
+
+    const mp = multiplayerSys;
+    this._mp = mp;
+
+    mp.onPartnerState = (payload) => {
+      if (!this._partnerSprite?.active) return;
+      this._partnerSprite.setPosition(payload.x, payload.y).setVisible(true);
+      this._partnerHPBar.setPosition(payload.x, payload.y + 18).setVisible(true);
+      this._partnerLabel.setPosition(payload.x - 8, payload.y - 24).setVisible(true);
+      this._partnerHP = payload.hp;
+      const pct = Math.max(0, Math.min(1, payload.hp / 100));
+      this._partnerHPBar.setScale(pct, 1);
+    };
+
+    mp.onPartnerDeath = () => {
+      this.hud?.showMsg('Your partner has fallen! You both lose...', 4000);
+      this.time.delayedCall(3000, () => this.onPlayerDeath?.());
+    };
+
+    mp.onEnemyKill = ({ enemyId }) => {
+      const enemy = this.enemyMgr?.enemies?.find(e => e._mpId === enemyId);
+      if (enemy && enemy.alive) { enemy.hp = 0; }
+    };
   }
 
   // ============================================================
@@ -445,10 +504,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   _updateBow(delta) {
-    const isBow = this.bow === 'bow' || this.bow === 'bow_upgraded';
-    if (!isBow) return;
-    const interval = this.bow === 'bow_upgraded' ? 1200 : 2000;
-    const dmg      = this.bow === 'bow_upgraded' ? 30 : 20;
+    if (!this.bow) return;
+    let interval, dmg;
+    if      (this.bow === 'ruby_bow')    { interval = 800;  dmg = 15; }
+    else if (this.bow === 'emerald_bow') { interval = 3000; dmg = 45; }
+    else                                  { interval = 2000; dmg = 20; }
     this._bowTimer += delta;
     if (this._bowTimer < interval) return;
     this._bowTimer = 0;
@@ -460,12 +520,36 @@ export class GameScene extends Phaser.Scene {
       if (d < nearD) { nearD = d; target = e; }
     }
     if (!target) return;
-    target.hp -= dmg;
-    if (target.sprite.active) {
-      target.sprite.setTint(0xFFFF00);
-      this.time.delayedCall(80, () => { if (target.sprite?.active) target.sprite.clearTint(); });
-    }
-    this.enemyMgr.spawnParticles(target.sprite.x, target.sprite.y, 0xFFFF00, 3);
+    // Arrow visual
+    this._spawnBowArrow(this.player.x, this.player.y, target);
+    // Damage applied on arrival (interval proportional to distance)
+    const travelMs = Math.max(80, nearD * 1.5);
+    this.time.delayedCall(travelMs, () => {
+      if (!target.alive) return;
+      target.hp -= dmg;
+      if (target.sprite?.active) {
+        target.sprite.setTint(0xFFFF00);
+        this.time.delayedCall(80, () => { if (target.sprite?.active) target.sprite.clearTint(); });
+      }
+      this.enemyMgr.spawnParticles(target.sprite.x, target.sprite.y, 0xFFFF00, 3);
+    });
+  }
+
+  _spawnBowArrow(fromX, fromY, target) {
+    const arrow = this.add.image(fromX, fromY, 'proj_arrow_player').setDepth(5);
+    const dx = target.sprite.x - fromX;
+    const dy = target.sprite.y - fromY;
+    arrow.setRotation(Math.atan2(dy, dx));
+    const dist = Math.hypot(dx, dy);
+    const travelMs = Math.max(80, dist * 1.5);
+    this.tweens.add({
+      targets: arrow,
+      x: target.sprite.x,
+      y: target.sprite.y,
+      duration: travelMs,
+      ease: 'Linear',
+      onComplete: () => { arrow.destroy(); },
+    });
   }
 
   _repairAllTowers() {
@@ -728,7 +812,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   _spawnTrapEnemies(chest, count) {
-    const pool = ['skeleton', 'zombie', 'soul_eater', 'ravager'];
+    const pool = ['shambler', 'skitterer', 'soul_eater', 'ravager'];
     for (let i = 0; i < Math.min(count, 8); i++) {
       const key = pool[Math.floor(Math.random() * pool.length)];
       const angle = Math.random() * Math.PI * 2;
@@ -1340,6 +1424,10 @@ export class GameScene extends Phaser.Scene {
     const tx  = Math.floor(wx / TS);
     const ty  = Math.floor(wy / TS);
     if (tx < 1 || ty < 1 || tx >= MW - 1 || ty >= MH - 1) return;
+    if (this.challengeMods?.no_towers && (this.buildMode?.cat === 'tower' || this.buildMode?.cat === 'wall')) {
+      this.hud.showMsg('No Towers mode — towers and walls cannot be placed!', 2000);
+      return;
+    }
     const cell = this.mapData[ty]?.[tx];
     if (!cell) return;
     if (cell.terrain === 'bwall') { this.hud.showMsg('Cannot build on boundary wall.', 1200); return; }
@@ -1382,6 +1470,7 @@ export class GameScene extends Phaser.Scene {
       if (blocker) { blocker.destroy(); delete this.riverBodies[`${tx},${ty}`]; }
       this.mapData[ty][tx].terrain = 'bridge';
       this.add.sprite(tx * TS + TS / 2, ty * TS + TS / 2, 'bridge').setDepth(1);
+      this._bridges.push({ tx, ty });
       soundMgr.build();
       this.hud.showMsg('Bridge built! River crossing complete.', 2000);
       return;
@@ -1435,9 +1524,16 @@ export class GameScene extends Phaser.Scene {
       this.hasRevive  = false;
       this.playerHP   = this.playerMaxHP;
       this.invincible = 3000;
-      this.cameras.main.flash(200, 255, 255, 255);
+      this.cameras.main.flash(400, 255, 255, 100);
+      soundMgr.play('revive');
+      this.enemyMgr?.spawnParticles(this.player.x, this.player.y, 0xFFD700, 20);
+      this.events?.emit('achievement_check', 'revive_used');
       this.hud.showMsg('Revive Token used — 3s invincibility!', 3000);
       return;
+    }
+    // Notify multiplayer partner
+    if (this.multiplayer && this._mp) {
+      this._mp.sendDeath();
     }
     // Bank souls into meta progression before deleting save
     metaProgression.addSoulsFromRun(this.inventory.souls || 0);
@@ -1446,7 +1542,7 @@ export class GameScene extends Phaser.Scene {
     this.alive = false;
     this.cameras.main.fadeOut(700, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('GameOver', { wave: this.wave, slotId: this.slotId });
+      this.scene.start('GameOver', { wave: this.wave, slotId: this.slotId, deathCause: this._lastDamageSource });
     });
   }
 
@@ -1522,6 +1618,7 @@ export class GameScene extends Phaser.Scene {
       wave:            this.wave,
       hp:              this.playerHP,
       mp:              this.playerMP,
+      playerMaxHP:     this.playerMaxHP,
       inventory:       { ...this.inventory },
       hasRevive:       this.hasRevive,
       px:              this.player.x,
@@ -1552,6 +1649,7 @@ export class GameScene extends Phaser.Scene {
       contracts:       this.contractSys?.serialize(),
       challengeMods:   this.challengeMods ?? {},
       chests:          (this.chests || []).map(c => ({ type: c.type, tx: c.tx, ty: c.ty, isOpen: c.isOpen })),
+      bridges:         (this._bridges || []).map(b => ({ tx: b.tx, ty: b.ty })),
       ...this.towerMgr.serialize(),
     };
     localStorage.setItem(this.saveSlotKey, JSON.stringify(save));
@@ -1566,6 +1664,7 @@ export class GameScene extends Phaser.Scene {
       this.wave             = s.wave      ?? 0;
       this.playerHP         = s.hp        ?? 100;
       this.playerMP         = s.mp        ?? 100;
+      this.playerMaxHP      = s.playerMaxHP ?? 100;
       this.inventory        = s.inventory ?? this.inventory;
       this.hasRevive        = s.hasRevive ?? false;
       if (s.px) this.player.x = s.px;
@@ -1622,6 +1721,19 @@ export class GameScene extends Phaser.Scene {
             chest.isOpen = true;
             chest.sprite.setTexture('chest_open');
             if (chest.label) chest.label.setVisible(false);
+          }
+        }
+      }
+      // Restore bridges
+      if (s.bridges && Array.isArray(s.bridges)) {
+        for (const b of s.bridges) {
+          const { tx, ty } = b;
+          if (this.mapData[ty]?.[tx]) {
+            this.mapData[ty][tx].terrain = 'bridge';
+            this.add.sprite(tx * TS + TS / 2, ty * TS + TS / 2, 'bridge').setDepth(1);
+            const blocker = this.riverBodies?.[`${tx},${ty}`];
+            if (blocker) { blocker.destroy(); delete this.riverBodies[`${tx},${ty}`]; }
+            this._bridges.push({ tx, ty });
           }
         }
       }

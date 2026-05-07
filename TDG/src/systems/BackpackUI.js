@@ -200,7 +200,7 @@ export class BackpackUI {
     // Weapon
     const sword = s.weapon ? s.weapon.replace('sword_', '').replace(/_/g, ' ') + ' Sword' : 'None';
     et.weapon?.setText(sword);
-    const bow = s.bow === 'bow_upgraded' ? 'Upgraded Bow' : s.bow === 'bow' ? 'Bow' : 'None';
+    const bow = s.bow === 'ruby_bow' ? 'Ruby Bow' : s.bow === 'emerald_bow' ? 'Emerald Bow' : s.bow === 'bow' ? 'Bow' : 'None';
     et.bow?.setText(bow);
 
     // Armor pieces

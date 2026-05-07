@@ -13,6 +13,8 @@ import { DeepCaveScene }    from './scenes/DeepCaveScene.js';
 import { BlueprintsScene }  from './scenes/BlueprintsScene.js';
 import { DungeonScene }      from './scenes/DungeonScene.js';
 
+import { MultiplayerScene } from './scenes/MultiplayerScene.js';
+
 const config = {
   type: Phaser.AUTO,
   width:  VW,
@@ -32,7 +34,7 @@ const config = {
     default: 'arcade',
     arcade: { gravity: { y: 0 }, debug: false },
   },
-  scene: [BootScene, MenuScene, HelpScene, BlueprintsScene, GameScene, CaveScene, DeepCaveScene, DungeonScene, GameOverScene],
+  scene: [BootScene, MenuScene, HelpScene, BlueprintsScene, GameScene, CaveScene, DeepCaveScene, DungeonScene, GameOverScene, MultiplayerScene],
 };
 
 new Phaser.Game(config);

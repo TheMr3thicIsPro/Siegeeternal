@@ -50,13 +50,20 @@ export class WaveManager {
     const w = this.scene.wave;
     this.scene.contractSys?.progress('waves', 1);
     this.scene.contractSys?.progress('night_survived', 1);
+    if (w >= 1)   this.scene.events?.emit('achievement_check', 'wave_1');
     if (w >= 10)  this.scene.events?.emit('achievement_check', 'wave_10');
     if (w >= 25)  this.scene.events?.emit('achievement_check', 'wave_25');
     if (w >= 50)  this.scene.events?.emit('achievement_check', 'wave_50');
+    if (w >= 100) this.scene.events?.emit('achievement_check', 'wave_100');
 
     // Reset all chests every day so players can re-loot each cycle
     if (this.scene.wave > 0) {
       this._resetChests();
+    }
+
+    // Regen some resources every 3 waves
+    if (this.scene.wave > 0 && this.scene.wave % 3 === 0) {
+      this._regenResources();
     }
 
     this.scene.saveGame?.();
@@ -136,7 +143,7 @@ export class WaveManager {
 
   update(delta) {
     // Sleep multiplier — 1.75× in both normal and hardcore
-    const sleepMult = this.scene.sleeping ? 1.75 : 1;
+    const sleepMult = this.scene.sleeping ? 2.0 : 1;
     this.phaseTime += delta * sleepMult;
 
     // Weather particle update
@@ -246,7 +253,7 @@ export class WaveManager {
       if (bossKey) {
         this.scene.time.delayedCall(count * 300 + 2000, () => {
           if (!this.scene.alive) return;
-          this.scene.enemyMgr.spawnAtEdge(bossKey);
+          this.scene.enemyMgr.spawnBossAtSafeEdge(bossKey);
           this.scene.hud?.showMsg('⚠ BOSS INCOMING!', 3000);
           soundMgr.bossAlert();
           this.scene.cameras?.main?.shake(500, 0.005);
@@ -332,5 +339,15 @@ export class WaveManager {
         if (this.scene.alive) this._spawnWave();
       });
     }
+  }
+
+  _regenResources() {
+    const inv = this.scene.inventory;
+    if (!inv) return;
+    inv.wood  = (inv.wood  || 0) + 15;
+    inv.stone = (inv.stone || 0) + 10;
+    inv.bone  = (inv.bone  || 0) + 5;
+    inv.coal  = (inv.coal  || 0) + 3;
+    this.scene.hud?.showMsg('Resources replenished! (+15 wood +10 stone +5 bone +3 coal)', 3500);
   }
 }

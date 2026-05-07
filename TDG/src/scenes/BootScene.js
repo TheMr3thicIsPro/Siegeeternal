@@ -578,12 +578,28 @@ export class BootScene extends Phaser.Scene {
       g.lineStyle(2, 0xEDE0C4); g.lineBetween(11, 16, 21, 16);
     });
 
-    // Upgraded Bow icon — glowing emerald-tipped
-    tex('bow_upgraded', TS, TS, g => {
-      g.lineStyle(3, 0x5BBCB0); g.strokeEllipse(16, 16, 10, 26);
-      g.lineStyle(1, 0x3A9C90); g.lineBetween(16, 3, 16, 29);
-      g.lineStyle(2, 0x7DDDD6); g.lineBetween(11, 16, 21, 16);
-      g.fillStyle(0x5BBCB0, 0.7); g.fillCircle(16, 3, 3);
+    // Ruby Bow icon — red/ruby toned, fast bow
+    tex('ruby_bow', TS, TS, g => {
+      g.lineStyle(3, 0xC0392B); g.strokeEllipse(16, 16, 10, 26);
+      g.lineStyle(1, 0x922B21); g.lineBetween(16, 3, 16, 29);
+      g.lineStyle(2, 0xF1948A); g.lineBetween(11, 16, 21, 16);
+      g.fillStyle(0xE74C3C, 0.85); g.fillCircle(16, 3, 3);
+      g.fillStyle(0xFF6B6B, 0.6); g.fillCircle(16, 29, 3);
+    });
+
+    // Emerald Bow icon — green/emerald toned, heavy bow
+    tex('emerald_bow', TS, TS, g => {
+      g.lineStyle(3, 0x27AE60); g.strokeEllipse(16, 16, 10, 26);
+      g.lineStyle(1, 0x1E8449); g.lineBetween(16, 3, 16, 29);
+      g.lineStyle(2, 0x58D68D); g.lineBetween(11, 16, 21, 16);
+      g.fillStyle(0x2ECC71, 0.85); g.fillCircle(16, 3, 4);
+      g.fillStyle(0x58D68D, 0.6); g.fillCircle(16, 29, 4);
+    });
+
+    // Player arrow projectile
+    tex('proj_arrow_player', 12, 4, g => {
+      g.fillStyle(0xEDE0C4); g.fillRect(0, 1, 9, 2);
+      g.fillStyle(0xC0392B); g.fillTriangle(9, 0, 12, 2, 9, 4);
     });
 
     // Iron pickaxe icon

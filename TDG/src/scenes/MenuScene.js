@@ -9,9 +9,12 @@ import { soundMgr }        from '../systems/SoundManager.js';
 const SLOT_KEYS = ['siege_eternal_save_1', 'siege_eternal_save_2', 'siege_eternal_save_3'];
 
 // ── Version history ───────────────────────────────────────
-export const CURRENT_VERSION = 'v0.12.0';
+export const CURRENT_VERSION = 'v0.13.2';
 
 const VERSION_HISTORY = [
+  { ver: 'v0.13.2', date: 'May 2026', notes: 'Supabase connected — multiplayer HOST/JOIN now live · Supabase CDN loaded in index.html' },
+  { ver: 'v0.13.1', date: 'May 2026', notes: 'Fix: save after craft (no more equipment loss) · Fix: no_towers challenge enforced · Fix: achievements overlay layout · Fix: playerMaxHP saved/restored · Multiplayer co-op via Supabase (HOST/JOIN lobby)' },
+  { ver: 'v0.13.0', date: 'May 2026', notes: 'Ruby Bow (fast/15dmg) + Emerald Bow (heavy/45dmg) · Arrow animation · Bridge persistence fix · Trap chest fix · Boss safe-edge spawn · Cave 60% darker w/o torch · Level-up auto-bonus (+10 HP) · Concrete contracts · 30+ achievements · Revive sound+effect · Death cause screen · Achievements menu · Resource regen every 3 days · Bed 2× speed' },
   { ver: 'v0.12.0', date: 'May 2026', notes: 'Player levels + XP · Contracts system · Achievements · Dungeon (cursed zone, key drop, boss, blueprints) · Merchant NPC (20% night) · Challenge mods (1HP/No Towers/Relentless/Scarce) · 4 dungeon towers · 4 consumable items · Phase Blade weapon' },
   { ver: 'v0.11.4', date: 'May 2026', notes: 'Dummy Statue decoy (200px enemy attractor) · Raids no longer spawn arrow towers · Codex item-loss bug fixed (sleep/wake) · Bone Chestplate stealth 200px · Chests reset every day' },
   { ver: 'v0.11.3', date: 'Apr 2026', notes: 'Codex full audit: blueprint text fixed · weapons tab · machines · cursed zone · relics · all chest types · 9 perk corrections' },
@@ -115,10 +118,12 @@ export class MenuScene extends Phaser.Scene {
     // Slot 3 bottom edge: slotY + 2*68 + 45 = 214+136+45 = 395
 
     // ── Bottom action buttons ──────────────────────────────
-    const btnY = 426;
-    this._makeBtn(cx - 210, btnY, 'CODEX',       () => this.scene.start('Help'),       0x0E1E2E, 0x88BBFF, 150);
-    this._makeBtn(cx,       btnY, 'BLUEPRINTS',  () => this.scene.start('Blueprints'), 0x0A1E0E, 0x44FFAA, 150);
-    this._makeBtn(cx + 210, btnY, 'SETTINGS',    () => this._openSettings(),           0x0E0E1E, 0xFFDD88, 150);
+    const btnY = 418;
+    this._makeBtn(cx,       btnY - 38, 'MULTIPLAYER',  () => this.scene.start('Multiplayer'), 0x08101E, 0x88BBFF, 200);
+    this._makeBtn(cx - 315, btnY + 10, 'CODEX',        () => this.scene.start('Help'),        0x0E1E2E, 0x88BBFF, 130);
+    this._makeBtn(cx - 105, btnY + 10, 'BLUEPRINTS',   () => this.scene.start('Blueprints'),  0x0A1E0E, 0x44FFAA, 130);
+    this._makeBtn(cx + 105, btnY + 10, 'ACHIEVEMENTS', () => this._openAchievements(),        0x1E0E0E, 0xFFAA44, 130);
+    this._makeBtn(cx + 315, btnY + 10, 'SETTINGS',     () => this._openSettings(),            0x0E0E1E, 0xFFDD88, 130);
 
     // ── Meta souls ─────────────────────────────────────────
     const souls = metaProgression.balance;
@@ -171,9 +176,17 @@ export class MenuScene extends Phaser.Scene {
     }).setOrigin(0, 0.5);
 
     // Save state (day count)
-    const statusTxt = this.add.text(cx - 130, y + 18, dayLabel, {
+    const statusTxt = this.add.text(cx - 130, y + 10, dayLabel, {
       fontSize: '16px', fill: hasSave ? '#88EE88' : '#3A2A1A', fontFamily: 'monospace',
     }).setOrigin(0, 0.5);
+
+    // Player level (below day count)
+    if (hasSave && save.playerLevel) {
+      const lvl = save.playerLevel.level ?? 1;
+      this.add.text(cx - 130, y + 28, `LVL ${lvl}`, {
+        fontSize: '10px', fill: '#AADDFF', fontFamily: 'monospace',
+      }).setOrigin(0, 0.5);
+    }
 
     // Action button label (right)
     const playTxt = this.add.text(cx + 140, y + 18, btnText, {
@@ -485,6 +498,93 @@ export class MenuScene extends Phaser.Scene {
         soundMgr.setVolume(settingsStore.sfxVolume);
         els.forEach(e => e.destroy());
       }
+    });
+  }
+
+  // ── Achievements overlay ──────────────────────────────────
+
+  _openAchievements() {
+    const { achievementSys } = window._siegeGlobals ?? {};
+    const PW = 560, PH = 400;
+    const px = VW / 2, py = VH / 2;
+
+    const overlay = this.add.rectangle(px, py, VW, VH, 0x000000, 0.76).setDepth(80).setInteractive();
+    const panel   = this.add.rectangle(px, py, PW, PH, 0x0E0A0E, 1)
+      .setStrokeStyle(2, 0xFFAA44).setDepth(81);
+    const title   = this.add.text(px, py - PH / 2 + 18, 'ACHIEVEMENTS', {
+      fontSize: '15px', fill: '#FFAA44', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5, 0.5).setDepth(82);
+
+    // Load achievement data
+    let unlocked = new Set();
+    try {
+      const raw = localStorage.getItem('siege_eternal_achievements');
+      if (raw) { const arr = JSON.parse(raw); arr.forEach(id => unlocked.add(id)); }
+    } catch (_) {}
+
+    // Inline defs for display (mirrors AchievementSystem without import)
+    const raw = localStorage.getItem('siege_eternal_achievements_defs');
+    const defs = [
+      { id: 'first_blood', name: 'First Blood', desc: 'Kill your first enemy' },
+      { id: 'wave_1', name: 'Night One', desc: 'Survive 1 day' },
+      { id: 'wave_10', name: 'Survivor', desc: 'Survive 10 days' },
+      { id: 'wave_25', name: 'Veteran', desc: 'Survive 25 days' },
+      { id: 'wave_50', name: 'Legendary', desc: 'Survive 50 days' },
+      { id: 'wave_100', name: 'Eternal', desc: 'Survive 100 days' },
+      { id: 'kills_100', name: 'Slayer', desc: 'Kill 100 enemies' },
+      { id: 'kills_1000', name: 'Massacre', desc: 'Kill 1,000 enemies' },
+      { id: 'first_boss', name: 'Boss Slayer', desc: 'Kill your first boss' },
+      { id: 'all_bosses', name: 'Tyrant Slayer', desc: 'Kill all 3 boss types in one run' },
+      { id: 'keys_100', name: 'Master Lockpick', desc: 'Collect 100 keys in a single run' },
+      { id: 'emerald_100', name: 'Emerald Hoarder', desc: 'Hold 100 emerald at once' },
+      { id: 'crystal_100', name: 'Crystal Lord', desc: 'Hold 100 crystal at once' },
+      { id: 'ruby_100', name: 'Ruby Baron', desc: 'Hold 100 ruby at once' },
+      { id: 'souls_1k', name: 'Soul Collector', desc: 'Accumulate 1,000 souls in one run' },
+      { id: 'souls_10k', name: 'Soul Reaper', desc: 'Accumulate 10,000 souls in one run' },
+      { id: 'cave_master', name: 'Cave Master', desc: 'Enter the deep cave' },
+      { id: 'dungeon_clear', name: 'Vault Breaker', desc: 'Clear the dungeon' },
+      { id: 'full_armor', name: 'Fully Armoured', desc: 'Equip a full armor set' },
+      { id: 'wave_10_1hp', name: 'Ironman', desc: 'Survive 10 days in 1 HP Mode' },
+      { id: 'challenge_1', name: 'Challenger', desc: 'Complete a run with any challenge mod' },
+      { id: 'challenge_all', name: 'Supreme Challenge', desc: 'Complete a run with all 4 mods active' },
+      { id: 'cursed_unlock', name: 'Into the Dark', desc: 'Unlock the cursed area' },
+      { id: 'raid_complete', name: 'Raid Defender', desc: 'Complete a raid event' },
+      { id: 'supply_defended', name: 'Logistics Expert', desc: 'Protect a supply crate to completion' },
+      { id: 'weather_all', name: 'Storm Chaser', desc: 'Encounter all 10 weather types' },
+      { id: 'revive_used', name: 'Second Chance', desc: 'Use a Revive Token' },
+      { id: 'contract_all', name: 'Contract Fulfilled', desc: 'Complete all 3 contracts in one run' },
+      { id: 'level_10', name: 'Seasoned', desc: 'Reach player level 10' },
+      { id: 'permadeath_win', name: 'Immortal', desc: 'Reach wave 20 without dying' },
+      { id: 'blueprints_all', name: 'Architect', desc: 'Unlock all blueprints' },
+      { id: 'collector', name: 'Hoarder', desc: 'Collect 500 of any one resource' },
+    ];
+
+    const els = [overlay, panel, title];
+    const COLS = 3, ROW_H = 28, startY = py - PH / 2 + 48;
+    const colW = PW / COLS;
+    defs.forEach((def, i) => {
+      const col  = i % COLS;
+      const row  = Math.floor(i / COLS);
+      const ax   = px - PW / 2 + 16 + col * colW;
+      const ay   = startY + row * ROW_H;
+      const done = unlocked.has(def.id);
+      const nameCol = done ? '#FFD700' : '#443322';
+      const descCol = done ? '#AAAAAA' : '#221A10';
+      const pre     = done ? '★ ' : '○ ';
+      els.push(
+        this.add.text(ax, ay,      pre + def.name, { fontSize: '9px', fill: nameCol, fontFamily: 'monospace', fontStyle: 'bold' }).setDepth(82),
+        this.add.text(ax, ay + 13, def.desc,        { fontSize: '7px', fill: descCol, fontFamily: 'monospace' }).setDepth(82),
+      );
+    });
+
+    const countDone = defs.filter(d => unlocked.has(d.id)).length;
+    els.push(this.add.text(px, py + PH / 2 - 18, `${countDone} / ${defs.length} unlocked`, {
+      fontSize: '10px', fill: '#888888', fontFamily: 'monospace',
+    }).setOrigin(0.5, 0.5).setDepth(82));
+
+    overlay.on('pointerdown', (ptr) => {
+      const dx = Math.abs(ptr.x - px), dy = Math.abs(ptr.y - py);
+      if (dx > PW / 2 || dy > PH / 2) els.forEach(e => e.destroy());
     });
   }
 }
