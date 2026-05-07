@@ -23,6 +23,7 @@ import { PlayerLevelSystem }   from '../systems/PlayerLevelSystem.js';
 import { ContractSystem }      from '../systems/ContractSystem.js';
 import { MerchantSystem }      from '../systems/MerchantSystem.js';
 import { achievementSys }      from '../systems/AchievementSystem.js';
+import { multiplayerSys }      from '../systems/MultiplayerSystem.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
@@ -33,6 +34,13 @@ export class GameScene extends Phaser.Scene {
     this.saveSlotKey    = `siege_eternal_save_${this.slotId}`;
     this.isHardcore     = data?.hardcore ?? false;
     this.challengeMods  = data?.challengeMods ?? {};
+    this.multiplayer    = data?.multiplayer   ?? false;
+    this.mpIsHost       = data?.isHost        ?? false;
+    this.mpRoomCode     = data?.mpRoomCode    ?? null;
+    this.mpSeed         = data?.mpSeed        ?? null;
+    this._mpStateTimer  = 0;
+    this._partnerSprite = null;
+    this._partnerHP     = null;
   }
 
   // ============================================================
@@ -41,7 +49,7 @@ export class GameScene extends Phaser.Scene {
   create() {
     // ── Shared state ──────────────────────────────────────
     // Use saved seed + theme if they exist (must happen before mapGen.generate)
-    this.seed     = Math.floor(Math.random() * 999999);
+    this.seed     = this.multiplayer && this.mpSeed ? this.mpSeed : Math.floor(Math.random() * 999999);
     this.mapTheme = MAP_THEMES[Math.floor(Math.random() * MAP_THEMES.length)];
     if (!this.isNewGame) {
       try {
@@ -202,6 +210,11 @@ export class GameScene extends Phaser.Scene {
         this.hud.showMsg('CHALLENGE: 1 HP Mode active!', 5000);
       }
     }
+
+    // Multiplayer setup
+    if (this.multiplayer) {
+      this._initMultiplayer();
+    }
   }
 
   // ============================================================
@@ -236,6 +249,50 @@ export class GameScene extends Phaser.Scene {
 
     if (this.invincible > 0) this.invincible -= delta;
     this.playerMP = Math.min(this.playerMaxMP, this.playerMP + delta * 0.01);
+
+    // Multiplayer state sync
+    if (this.multiplayer && multiplayerSys._ready) {
+      this._mpStateTimer = (this._mpStateTimer ?? 0) + delta;
+      if (this._mpStateTimer > 100) {
+        this._mpStateTimer = 0;
+        multiplayerSys.sendState(this.player.x, this.player.y, this.playerHP, this.wave);
+      }
+    }
+  }
+
+  // ============================================================
+  // MULTIPLAYER
+  // ============================================================
+  _initMultiplayer() {
+    // Partner sprite (simple white rectangle)
+    this._partnerSprite = this.add.rectangle(0, 0, 28, 28, 0x88BBFF, 0.8).setDepth(6).setVisible(false);
+    this._partnerHPBar  = this.add.rectangle(0, 0, 28, 4, 0x44FF44).setDepth(7).setVisible(false);
+    this._partnerLabel  = this.add.text(0, 0, 'P2', {
+      fontSize: '8px', fill: '#88BBFF', fontFamily: 'monospace',
+    }).setDepth(7).setVisible(false);
+
+    const mp = multiplayerSys;
+    this._mp = mp;
+
+    mp.onPartnerState = (payload) => {
+      if (!this._partnerSprite?.active) return;
+      this._partnerSprite.setPosition(payload.x, payload.y).setVisible(true);
+      this._partnerHPBar.setPosition(payload.x, payload.y + 18).setVisible(true);
+      this._partnerLabel.setPosition(payload.x - 8, payload.y - 24).setVisible(true);
+      this._partnerHP = payload.hp;
+      const pct = Math.max(0, Math.min(1, payload.hp / 100));
+      this._partnerHPBar.setScale(pct, 1);
+    };
+
+    mp.onPartnerDeath = () => {
+      this.hud?.showMsg('Your partner has fallen! You both lose...', 4000);
+      this.time.delayedCall(3000, () => this.onPlayerDeath?.());
+    };
+
+    mp.onEnemyKill = ({ enemyId }) => {
+      const enemy = this.enemyMgr?.enemies?.find(e => e._mpId === enemyId);
+      if (enemy && enemy.alive) { enemy.hp = 0; }
+    };
   }
 
   // ============================================================
@@ -1367,6 +1424,10 @@ export class GameScene extends Phaser.Scene {
     const tx  = Math.floor(wx / TS);
     const ty  = Math.floor(wy / TS);
     if (tx < 1 || ty < 1 || tx >= MW - 1 || ty >= MH - 1) return;
+    if (this.challengeMods?.no_towers && (this.buildMode?.cat === 'tower' || this.buildMode?.cat === 'wall')) {
+      this.hud.showMsg('No Towers mode — towers and walls cannot be placed!', 2000);
+      return;
+    }
     const cell = this.mapData[ty]?.[tx];
     if (!cell) return;
     if (cell.terrain === 'bwall') { this.hud.showMsg('Cannot build on boundary wall.', 1200); return; }
@@ -1470,6 +1531,10 @@ export class GameScene extends Phaser.Scene {
       this.hud.showMsg('Revive Token used — 3s invincibility!', 3000);
       return;
     }
+    // Notify multiplayer partner
+    if (this.multiplayer && this._mp) {
+      this._mp.sendDeath();
+    }
     // Bank souls into meta progression before deleting save
     metaProgression.addSoulsFromRun(this.inventory.souls || 0);
     // Delete the save immediately — no reloading to cheat death
@@ -1553,6 +1618,7 @@ export class GameScene extends Phaser.Scene {
       wave:            this.wave,
       hp:              this.playerHP,
       mp:              this.playerMP,
+      playerMaxHP:     this.playerMaxHP,
       inventory:       { ...this.inventory },
       hasRevive:       this.hasRevive,
       px:              this.player.x,
@@ -1598,6 +1664,7 @@ export class GameScene extends Phaser.Scene {
       this.wave             = s.wave      ?? 0;
       this.playerHP         = s.hp        ?? 100;
       this.playerMP         = s.mp        ?? 100;
+      this.playerMaxHP      = s.playerMaxHP ?? 100;
       this.inventory        = s.inventory ?? this.inventory;
       this.hasRevive        = s.hasRevive ?? false;
       if (s.px) this.player.x = s.px;

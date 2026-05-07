@@ -9,9 +9,10 @@ import { soundMgr }        from '../systems/SoundManager.js';
 const SLOT_KEYS = ['siege_eternal_save_1', 'siege_eternal_save_2', 'siege_eternal_save_3'];
 
 // ── Version history ───────────────────────────────────────
-export const CURRENT_VERSION = 'v0.13.0';
+export const CURRENT_VERSION = 'v0.13.1';
 
 const VERSION_HISTORY = [
+  { ver: 'v0.13.1', date: 'May 2026', notes: 'Fix: save after craft (no more equipment loss) · Fix: no_towers challenge enforced · Fix: achievements overlay layout · Fix: playerMaxHP saved/restored · Multiplayer co-op via Supabase (HOST/JOIN lobby)' },
   { ver: 'v0.13.0', date: 'May 2026', notes: 'Ruby Bow (fast/15dmg) + Emerald Bow (heavy/45dmg) · Arrow animation · Bridge persistence fix · Trap chest fix · Boss safe-edge spawn · Cave 60% darker w/o torch · Level-up auto-bonus (+10 HP) · Concrete contracts · 30+ achievements · Revive sound+effect · Death cause screen · Achievements menu · Resource regen every 3 days · Bed 2× speed' },
   { ver: 'v0.12.0', date: 'May 2026', notes: 'Player levels + XP · Contracts system · Achievements · Dungeon (cursed zone, key drop, boss, blueprints) · Merchant NPC (20% night) · Challenge mods (1HP/No Towers/Relentless/Scarce) · 4 dungeon towers · 4 consumable items · Phase Blade weapon' },
   { ver: 'v0.11.4', date: 'May 2026', notes: 'Dummy Statue decoy (200px enemy attractor) · Raids no longer spawn arrow towers · Codex item-loss bug fixed (sleep/wake) · Bone Chestplate stealth 200px · Chests reset every day' },
@@ -116,11 +117,12 @@ export class MenuScene extends Phaser.Scene {
     // Slot 3 bottom edge: slotY + 2*68 + 45 = 214+136+45 = 395
 
     // ── Bottom action buttons ──────────────────────────────
-    const btnY = 426;
-    this._makeBtn(cx - 315, btnY, 'CODEX',        () => this.scene.start('Help'),        0x0E1E2E, 0x88BBFF, 130);
-    this._makeBtn(cx - 105, btnY, 'BLUEPRINTS',   () => this.scene.start('Blueprints'),  0x0A1E0E, 0x44FFAA, 130);
-    this._makeBtn(cx + 105, btnY, 'ACHIEVEMENTS', () => this._openAchievements(),        0x1E0E0E, 0xFFAA44, 130);
-    this._makeBtn(cx + 315, btnY, 'SETTINGS',     () => this._openSettings(),            0x0E0E1E, 0xFFDD88, 130);
+    const btnY = 418;
+    this._makeBtn(cx,       btnY - 38, 'MULTIPLAYER',  () => this.scene.start('Multiplayer'), 0x08101E, 0x88BBFF, 200);
+    this._makeBtn(cx - 315, btnY + 10, 'CODEX',        () => this.scene.start('Help'),        0x0E1E2E, 0x88BBFF, 130);
+    this._makeBtn(cx - 105, btnY + 10, 'BLUEPRINTS',   () => this.scene.start('Blueprints'),  0x0A1E0E, 0x44FFAA, 130);
+    this._makeBtn(cx + 105, btnY + 10, 'ACHIEVEMENTS', () => this._openAchievements(),        0x1E0E0E, 0xFFAA44, 130);
+    this._makeBtn(cx + 315, btnY + 10, 'SETTINGS',     () => this._openSettings(),            0x0E0E1E, 0xFFDD88, 130);
 
     // ── Meta souls ─────────────────────────────────────────
     const souls = metaProgression.balance;
@@ -502,7 +504,7 @@ export class MenuScene extends Phaser.Scene {
 
   _openAchievements() {
     const { achievementSys } = window._siegeGlobals ?? {};
-    const PW = 560, PH = 420;
+    const PW = 560, PH = 400;
     const px = VW / 2, py = VH / 2;
 
     const overlay = this.add.rectangle(px, py, VW, VH, 0x000000, 0.76).setDepth(80).setInteractive();
@@ -557,19 +559,20 @@ export class MenuScene extends Phaser.Scene {
     ];
 
     const els = [overlay, panel, title];
-    const COLS = 2, ROW_H = 38, startY = py - PH / 2 + 48;
+    const COLS = 3, ROW_H = 28, startY = py - PH / 2 + 48;
+    const colW = PW / COLS;
     defs.forEach((def, i) => {
       const col  = i % COLS;
       const row  = Math.floor(i / COLS);
-      const ax   = px - PW / 2 + 30 + col * (PW / 2);
+      const ax   = px - PW / 2 + 16 + col * colW;
       const ay   = startY + row * ROW_H;
       const done = unlocked.has(def.id);
       const nameCol = done ? '#FFD700' : '#443322';
       const descCol = done ? '#AAAAAA' : '#221A10';
       const pre     = done ? '★ ' : '○ ';
       els.push(
-        this.add.text(ax, ay,      pre + def.name, { fontSize: '10px', fill: nameCol, fontFamily: 'monospace', fontStyle: 'bold' }).setDepth(82),
-        this.add.text(ax, ay + 14, def.desc,        { fontSize: '8px',  fill: descCol, fontFamily: 'monospace' }).setDepth(82),
+        this.add.text(ax, ay,      pre + def.name, { fontSize: '9px', fill: nameCol, fontFamily: 'monospace', fontStyle: 'bold' }).setDepth(82),
+        this.add.text(ax, ay + 13, def.desc,        { fontSize: '7px', fill: descCol, fontFamily: 'monospace' }).setDepth(82),
       );
     });
 

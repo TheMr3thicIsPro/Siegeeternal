@@ -658,6 +658,12 @@ export class HUD {
       return;
     }
 
+    // No Towers challenge mode — block tower/wall crafting
+    if (this.scene.challengeMods?.no_towers && (cat === 'tower' || cat === 'wall')) {
+      this.showMsg('No Towers mode — towers and walls cannot be crafted!', 2000);
+      return;
+    }
+
     // Helmet slot
     if (cat === 'helmet') {
       Object.entries(scaledCost).forEach(([r, n]) => { inv[r] -= n; });
@@ -668,6 +674,7 @@ export class HUD {
       const setMsg = bonus ? `  🎉 ${bonus.name}!` : '';
       this.showMsg(`Equipped: ${def.name}${setMsg}`, 3000);
       this._refreshSlots();
+      this.scene.saveGame?.();
       return;
     }
 
@@ -681,6 +688,7 @@ export class HUD {
       const setMsg = bonus ? `  🎉 ${bonus.name}!` : '';
       this.showMsg(`Equipped: ${def.name}${setMsg}`, 3000);
       this._refreshSlots();
+      this.scene.saveGame?.();
       return;
     }
 
@@ -695,6 +703,7 @@ export class HUD {
       const setMsg = bonus ? `  🎉 ${bonus.name}!` : '';
       this.showMsg(`Equipped: ${def.name}${setMsg}`, 3000);
       this._refreshSlots();
+      this.scene.saveGame?.();
       return;
     }
 
@@ -743,6 +752,7 @@ export class HUD {
         this._recalcArmor();
       }
       this.showMsg(`Crafted: ${def.name}`, 2000);
+      this.scene.saveGame?.();
       this._refreshSlots();
       return;
     }
