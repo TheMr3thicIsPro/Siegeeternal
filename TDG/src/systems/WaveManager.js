@@ -82,6 +82,16 @@ export class WaveManager {
     this.phaseLen  = NIGHT_DUR;
     this.scene.wave++;
 
+    // Progressive wave scaling: +10% HP/SPD/count per 5 waves
+    const _wStep = Math.max(0, Math.floor((this.scene.wave - 1) / 5));
+    this.scene.waveScaleHpSpd = 1 + _wStep * 0.10;
+    if (_wStep > 0 && this.scene.wave % 5 === 1) {
+      this.scene.time.delayedCall(2200, () => {
+        if (this.scene.alive)
+          this.scene.hud?.showMsg(`⚡ Enemies are ${_wStep * 10}% stronger this wave!`, 4000);
+      });
+    }
+
     // Clear any lingering solar eclipse and roll new weather
     this.scene.weatherSystem?.clear?.();
     this.scene.weatherSystem?.roll?.();
@@ -228,11 +238,12 @@ export class WaveManager {
       ? [this.bountyEnemyKey]
       : this._getEligiblePool(wave);
 
-    // Apply weather count multiplier and boss-kill escalation
+    // Apply weather count multiplier, boss-kill escalation, and progressive wave scaling
     const weatherCountMult = this.scene.weatherSystem?.enemyCountMult?.() ?? 1;
     const bossCountMult    = this.scene.bossBuff?.countMult ?? 1;
+    const waveCountMult    = this.scene.waveScaleHpSpd ?? 1;
     const baseCount        = BASE_WAVE_SIZE + (wave - 1) * 2;
-    const count            = Math.round(baseCount * weatherCountMult * bossCountMult);
+    const count            = Math.round(baseCount * weatherCountMult * bossCountMult * waveCountMult);
 
     const isBossWave = wave % 10 === 0 && wave > 0;
 

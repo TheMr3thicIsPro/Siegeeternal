@@ -91,12 +91,14 @@ export class MerchantSystem {
       const cost = s.add.text(cx + 90, cy + 38, `Cost: ${costStr}`, {
         fontSize: '9px', color: '#FFCC44', fontFamily: 'monospace',
       }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(122);
-      const bought = item.bought
-        ? s.add.text(cx + 90, cy + 60, '[SOLD OUT]', { fontSize: '9px', color: '#FF4444', fontFamily: 'monospace' }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(122)
-        : null;
+
+      // Always pre-create SOLD OUT label; shown/hidden based on bought state
+      const soldOut = s.add.text(cx + 90, cy + 62, '[SOLD OUT]', {
+        fontSize: '9px', color: '#FF4444', fontFamily: 'monospace',
+      }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(122).setVisible(item.bought);
 
       box.on('pointerover', () => !item.bought && box.setFillStyle(0x442255, 0.9));
-      box.on('pointerout',  () => box.setFillStyle(0x221133, 0.9));
+      box.on('pointerout',  () => box.setFillStyle(item.bought ? 0x111111 : 0x221133, item.bought ? 0.5 : 0.9));
       box.on('pointerdown', () => {
         if (item.bought) return;
         if (this._canAfford(item.cost)) {
@@ -104,16 +106,12 @@ export class MerchantSystem {
           this._give(item);
           item.bought = true;
           box.setFillStyle(0x111111, 0.5);
-          if (bought) { bought.setVisible(true); }
-          else {
-            s.add.text(cx + 90, cy + 60, '[SOLD OUT]', { fontSize: '9px', color: '#FF4444', fontFamily: 'monospace' })
-              .setOrigin(0.5, 0).setScrollFactor(0).setDepth(122);
-          }
+          soldOut.setVisible(true);
+          nm.setStyle({ color: '#666666' });
         }
       });
 
-      objs.push(box, nm, cost);
-      if (bought) objs.push(bought);
+      objs.push(box, nm, cost, soldOut);
     });
 
     const closeBtn = s.add.text(480, oy + oh - 18, '[ CLOSE ]', {

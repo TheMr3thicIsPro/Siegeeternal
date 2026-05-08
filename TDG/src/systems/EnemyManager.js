@@ -37,8 +37,13 @@ export class EnemyManager {
   /** Spawn an enemy at an explicit world position */
   spawnAt(key, wx, wy, overrideDef = null) {
     const scene = this.scene;
-    const def = overrideDef || ENEMY_DEFS[key];
-    if (!def) return;
+    const rawDef = overrideDef || ENEMY_DEFS[key];
+    if (!rawDef) return;
+    // Progressive wave scaling: +10% HP & SPD every 5 waves (non-boss enemies only)
+    const _ws  = rawDef.boss ? 1 : (this.scene.waveScaleHpSpd ?? 1);
+    const def  = _ws > 1
+      ? { ...rawDef, hp: Math.ceil(rawDef.hp * _ws), spd: Math.ceil(rawDef.spd * _ws) }
+      : rawDef;
 
     // Cursed enemy types must stay in the cursed zone (north of river).
     // Block any attempt to spawn them in the safe overworld area.

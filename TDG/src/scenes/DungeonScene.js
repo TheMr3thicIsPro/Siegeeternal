@@ -116,10 +116,10 @@ export class DungeonScene extends Phaser.Scene {
 
   _spawnEnemy(key, baseDef, x, y, hpScale = 1) {
     const def = { ...baseDef, hp: Math.floor(baseDef.hp * hpScale), maxHp: Math.floor(baseDef.hp * hpScale) };
-    const col  = key === 'dungeon_shade' ? 0x6644AA : (key === 'dungeon_golem' ? 0x888888 : 0xCC4444);
-    const sz   = def.sz ?? 14;
-    const sprite = this.physics.add.sprite(x, y, 'player')
-      .setDisplaySize(sz * 2, sz * 2).setTint(col).setDepth(15);
+    const sz     = def.sz ?? 14;
+    const texKey = `e_${key}`;
+    const sprite = this.physics.add.sprite(x, y, texKey)
+      .setDisplaySize(sz * 2, sz * 2).setDepth(15);
     sprite.setCollideWorldBounds(true);
     this.physics.add.collider(sprite, this._walls);
 
@@ -139,6 +139,7 @@ export class DungeonScene extends Phaser.Scene {
     this._boss  = this._spawnEnemy('vault_keeper', def, DW / 2, TS * 3, hpScale);
     this._boss.sprite.setTint(0xAA00FF).setDisplaySize(90, 90).setDepth(16);
     soundMgr.play('bossAlert');
+    this._showBossBar();
 
     this._bossLabel = this.add.text(DW / 2, TS * 3 - 60, '⚔ VAULT KEEPER', {
       fontSize: '14px', color: '#FF44FF', fontFamily: 'monospace', fontStyle: 'bold',
@@ -239,11 +240,29 @@ export class DungeonScene extends Phaser.Scene {
     const dmg = this._attackDmg;
     const r   = 80;
     const px  = this._player.x, py = this._player.y;
-    for (const e of this._enemies) {
+    this._showSwingArc(px, py, wx, wy, r);
+    for (const e of this._enemies ?? []) {
       if (!e.alive) continue;
       const d = Math.hypot(e.sprite.x - px, e.sprite.y - py);
       if (d < r) this._hitEnemy(e, dmg);
     }
+  }
+
+  _showSwingArc(ox, oy, tx, ty, r) {
+    const angle  = Math.atan2(ty - oy, tx - ox);
+    const spread = Math.PI * 0.55;
+    const gfx    = this.add.graphics().setDepth(25);
+    gfx.fillStyle(0xFFDD44, 0.18);
+    gfx.beginPath();
+    gfx.moveTo(ox, oy);
+    gfx.arc(ox, oy, r * 0.85, angle - spread / 2, angle + spread / 2);
+    gfx.closePath();
+    gfx.fillPath();
+    gfx.lineStyle(2.5, 0xFFDD44, 1);
+    gfx.beginPath();
+    gfx.arc(ox, oy, r * 0.85, angle - spread / 2, angle + spread / 2, false);
+    gfx.strokePath();
+    this.tweens.add({ targets: gfx, alpha: 0, duration: 220, ease: 'Power2', onComplete: () => gfx.destroy() });
   }
 
   _hitEnemy(e, dmg) {
@@ -257,6 +276,8 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   _killEnemy(e) {
+    this._spawnDeathParticles(e.sprite.x, e.sprite.y,
+      e.key === 'vault_keeper' ? 0xAA00FF : e.key === 'dungeon_golem' ? 0x888888 : 0xFF4444);
     e.alive = false;
     e.sprite.destroy();
     soundMgr.play('die');
@@ -284,6 +305,33 @@ export class DungeonScene extends Phaser.Scene {
       this._cleared = true;
       this._showClearScreen();
     }
+  }
+
+  _spawnDeathParticles(x, y, col) {
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 * i) / 8 + Math.random() * 0.5;
+      const dist  = 28 + Math.random() * 36;
+      const dot   = this.add.circle(x, y, 2 + Math.random() * 2, col).setDepth(18);
+      this.tweens.add({
+        targets: dot,
+        x: x + Math.cos(angle) * dist, y: y + Math.sin(angle) * dist,
+        alpha: 0, scaleX: 0.1, scaleY: 0.1,
+        duration: 320 + Math.random() * 180,
+        ease: 'Power2',
+        onComplete: () => dot.destroy(),
+      });
+    }
+  }
+
+  _showBossBar() {
+    if (this._bossBarBg) return;
+    this._bossBarBg   = this.add.rectangle(480, 620, 420, 18, 0x220011)
+      .setScrollFactor(0).setDepth(110).setStrokeStyle(1, 0x880044);
+    this._bossBarFill = this.add.rectangle(270, 620, 420, 18, 0xAA00FF)
+      .setScrollFactor(0).setDepth(111).setOrigin(0, 0.5);
+    this._bossBarLabel = this.add.text(480, 601, '⚔  VAULT KEEPER', {
+      fontSize: '10px', color: '#FF88FF', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(111);
   }
 
   _checkClear() {
@@ -328,12 +376,19 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   _updateHUD() {
-    const alive  = this._enemies.filter(e => e.alive && e.key !== 'vault_keeper').length;
-    const bossHP = this._boss?.alive ? Math.ceil(this._boss.hp) : 0;
+    const alive   = this._enemies.filter(e => e.alive && e.key !== 'vault_keeper').length;
+    const bossHP  = this._boss?.alive ? Math.ceil(this._boss.hp) : 0;
     const bossMax = this._boss?.maxHp ?? 1;
-    const phase  = this._bossSpawned ? `BOSS HP: ${bossHP}/${bossMax}` : `Enemies: ${alive} left`;
-    this._hudText.setText(`THE DUNGEON  |  Player HP: ${Math.ceil(this._playerHP)}  |  Kills: ${this._kills}  |  ${phase}`);
+    const phase   = this._bossSpawned ? `BOSS: ${bossHP}/${bossMax}` : `Enemies: ${alive} left`;
+    this._hudText.setText(`DUNGEON  |  HP: ${Math.ceil(this._playerHP)}  |  Kills: ${this._kills}  |  ${phase}`);
     const pct = this._playerHP / (this._playerMaxHP || 1);
     this._hpFill.setDisplaySize(160 * Math.max(0, pct), 12);
+    // Boss HP bar
+    if (this._boss && this._bossBarFill) {
+      const bpct = Math.max(0, this._boss.hp / this._boss.maxHp);
+      this._bossBarFill.setDisplaySize(420 * bpct, 18);
+      const barCol = bpct > 0.5 ? 0xAA00FF : bpct > 0.25 ? 0xFF4499 : 0xFF0000;
+      this._bossBarFill.setFillStyle(barCol);
+    }
   }
 }
