@@ -370,15 +370,6 @@ export const DUNGEON_TOWER_DEFS = {
   thorn_cage:    { name: 'Thorn Cage',    blueprint: 'thorn_cage',    cost: { iron: 8, crystal: 4, cursed_essence: 3     }, range: 48,  rate: 500,  dmg: 15, dayOn: true, nightOn: true, tex: 'tw_thorn_cage',    desc: 'Short-range AoE field, hits all nearby', aoe: 48 },
 };
 
-// Dungeon chest — big loot, only one per dungeon run
-Object.assign(CHEST_DEFS, {
-  dungeon: {
-    keyItem: null, label: 'Dungeon Chest',
-    rewards: { crystal: 20, ruby: 8, emerald: 8, gold: 40, souls: 25, void_shards: 3 },
-    dungeonOnly: true,
-  },
-});
-
 // ── Consumable items (gameplay-changing, not basic resources) ─
 export const CONSUMABLE_DEFS = {
   soul_bomb:       { name: 'Soul Bomb',       cost: { souls: 20, crystal: 5                    }, tex: 'soul_bomb',       desc: 'Explode — kills all enemies within 120px',    radius: 120,  cat: 'consumable' },
@@ -442,5 +433,10 @@ export const CHEST_DEFS = {
     keyItem:  null,
     label:    'Starter Chest',
     rewards:  { wood: 60, stone: 40, bone: 15, coal: 8, iron: 5, cooked_meat: 2 },
+  },
+  dungeon: {
+    keyItem: null, label: 'Dungeon Chest',
+    rewards: { crystal: 20, ruby: 8, emerald: 8, gold: 40, souls: 25, void_shards: 3 },
+    dungeonOnly: true,
   },
 };
