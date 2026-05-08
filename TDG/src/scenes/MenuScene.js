@@ -9,9 +9,10 @@ import { soundMgr }        from '../systems/SoundManager.js';
 const SLOT_KEYS = ['siege_eternal_save_1', 'siege_eternal_save_2', 'siege_eternal_save_3'];
 
 // ── Version history ───────────────────────────────────────
-export const CURRENT_VERSION = 'v0.14.0';
+export const CURRENT_VERSION = 'v0.14.1';
 
 const VERSION_HISTORY = [
+  { ver: 'v0.14.1', date: 'May 2026', notes: 'Settings/Achievements overlay redesign · Bone chestplate stealth 350px · Starter chest one-time only · Codex chrome deep-space restyle' },
   { ver: 'v0.14.0', date: 'May 2026', notes: 'Deep-space menu redesign · Aurora bg, star field, shooting star · New 72px world slots with accent bars & chips inside · Featured MULTIPLAYER glow button · Colored nav row (Codex/Blueprints/Achievements/Settings)' },
   { ver: 'v0.13.2', date: 'May 2026', notes: 'Supabase connected — multiplayer HOST/JOIN now live · Supabase CDN loaded in index.html' },
   { ver: 'v0.13.1', date: 'May 2026', notes: 'Fix: save after craft (no more equipment loss) · Fix: no_towers challenge enforced · Fix: achievements overlay layout · Fix: playerMaxHP saved/restored · Multiplayer co-op via Supabase (HOST/JOIN lobby)' },
@@ -505,52 +506,51 @@ export class MenuScene extends Phaser.Scene {
   // ── Settings overlay ─────────────────────────────────────
 
   _openSettings() {
-    const overlay = this.add.rectangle(VW / 2, VH / 2, VW, VH, 0x000000, 0.72).setDepth(80).setInteractive();
-
-    const PW = 440, PH = 330;
+    const PW = 520, PH = 370;
     const px = VW / 2, py = VH / 2;
 
-    const panel = this.add.rectangle(px, py, PW, PH, 0x0E0C1A, 1)
-      .setStrokeStyle(2, 0x5533AA).setDepth(81);
+    const overlay = this.add.rectangle(px, py, VW, VH, 0x000000, 0.76).setDepth(80).setInteractive();
+    const panel   = this.add.rectangle(px, py, PW, PH, 0x08091A).setStrokeStyle(2, 0x3344BB).setDepth(81);
+    // Top accent stripe
+    const stripe  = this.add.rectangle(px, py - PH / 2 + 1.5, PW, 3, 0x4466EE).setDepth(82);
 
-    const els = [overlay, panel];
-    const add  = (el) => { els.push(el.setDepth(82)); return el; };
-    const txt  = (x, y, str, size, col) => add(this.add.text(x, y, str, {
-      fontSize: size, fill: col, fontFamily: 'monospace',
+    const els = [overlay, panel, stripe];
+    const d   = (el) => { els.push(el.setDepth(82)); return el; };
+
+    d(this.add.text(px, py - PH / 2 + 20, 'SETTINGS', {
+      fontSize: '16px', fill: '#CCDAFF', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5));
+    d(this.add.rectangle(px, py - PH / 2 + 36, PW - 24, 1, 0x3344BB, 0.5));
 
-    txt(px, py - PH / 2 + 20, 'SETTINGS', '18px', '#FFDD88');
-    add(this.add.rectangle(px, py - PH / 2 + 34, PW - 20, 1, 0x5533AA, 0.5));
+    const LEFT   = px - PW / 2 + 22;
+    const OPT_X  = LEFT + 188;   // options start here
+    const startY = py - PH / 2 + 56;
+    const rowH   = 68;
 
-    const LEFT   = px - PW / 2 + 24;
-    const LABX   = LEFT + 155;
-    const startY = py - PH / 2 + 60;
-    const rowH   = 58;
-
-    const rowLabel = (row, label) => {
-      add(this.add.text(LEFT, startY + row * rowH, label, {
-        fontSize: '12px', fill: '#C8A96E', fontFamily: 'monospace',
-      }));
+    const rowLabel = (row, label, sub) => {
+      d(this.add.text(LEFT, startY + row * rowH, label, { fontSize: '11px', fill: '#C8A96E', fontFamily: 'monospace' }));
+      if (sub) d(this.add.text(LEFT, startY + row * rowH + 18, sub, { fontSize: '8px', fill: '#4A4066', fontFamily: 'monospace' }));
     };
 
     const makeGroup = (row, options, getCurrent, onSelect) => {
+      const BW = 40, GAP = 5, STEP = BW + GAP;
       const btns = options.map((opt, i) => {
-        const bx = LABX + i * (64 + 8);
-        const bg = this.add.rectangle(bx, startY + row * rowH + 2, 60, 26, 0x1A1428, 1)
-          .setStrokeStyle(1, 0x5533AA).setDepth(82).setInteractive({ useHandCursor: true });
-        const t  = this.add.text(bx, startY + row * rowH + 2, opt.label, {
-          fontSize: '11px', fill: '#8877AA', fontFamily: 'monospace',
+        const bx = OPT_X + i * STEP + BW / 2;
+        const by = startY + row * rowH + 10;
+        const bg = this.add.rectangle(bx, by, BW, 27, 0x101428)
+          .setStrokeStyle(1, 0x3344BB).setDepth(82).setInteractive({ useHandCursor: true });
+        const t  = this.add.text(bx, by, opt.label, {
+          fontSize: '10px', fill: '#6677AA', fontFamily: 'monospace',
         }).setOrigin(0.5).setDepth(83);
         els.push(bg, t);
 
         const refresh = () => {
           const active = opt.value === getCurrent();
-          bg.setFillStyle(active ? 0x5533AA : 0x1A1428);
-          t.setStyle({ fill: active ? '#FFFFFF' : '#8877AA' });
+          bg.setFillStyle(active ? 0x2233AA : 0x101428);
+          t.setStyle({ fill: active ? '#FFFFFF' : '#6677AA' });
         };
         refresh();
-
-        bg.on('pointerover', () => bg.setFillStyle(0x3322AA));
+        bg.on('pointerover', () => bg.setFillStyle(0x1A2488));
         bg.on('pointerout',  refresh);
         bg.on('pointerdown', () => { onSelect(opt.value); btns.forEach(b => b._refresh()); });
         bg._refresh = refresh;
@@ -559,15 +559,13 @@ export class MenuScene extends Phaser.Scene {
       return btns;
     };
 
-    rowLabel(0, 'Cursor / Aim Sensitivity');
+    rowLabel(0, 'Cursor / Aim Sensitivity', 'Gamepad right-stick cursor speed');
     makeGroup(0,
-      [{ label:'0.5×', value:0.5 },{ label:'1×', value:1 },{ label:'1.5×', value:1.5 },{ label:'2×', value:2 },{ label:'2.5×', value:2.5 },{ label:'3×', value:3 }],
+      [{ label:'0.5×', value:0.5 },{ label:'1×', value:1 },{ label:'1.5×', value:1.5 },
+       { label:'2×', value:2 },{ label:'2.5×', value:2.5 },{ label:'3×', value:3 }],
       () => settingsStore.cursorSensitivity,
       (v) => { settingsStore.cursorSensitivity = v; }
     );
-    add(this.add.text(LEFT, startY + 0 * rowH + 20, 'Affects gamepad right-stick cursor speed', {
-      fontSize: '9px', fill: '#554466', fontFamily: 'monospace',
-    }));
 
     rowLabel(1, 'Screen Shake');
     makeGroup(1,
@@ -578,7 +576,8 @@ export class MenuScene extends Phaser.Scene {
 
     rowLabel(2, 'SFX Volume');
     makeGroup(2,
-      [{ label:'0%', value:0 },{ label:'25%', value:0.25 },{ label:'50%', value:0.5 },{ label:'75%', value:0.75 },{ label:'100%', value:1 }],
+      [{ label:'0%', value:0 },{ label:'25%', value:0.25 },{ label:'50%', value:0.5 },
+       { label:'75%', value:0.75 },{ label:'100%', value:1 }],
       () => settingsStore.sfxVolume,
       (v) => { settingsStore.sfxVolume = v; soundMgr.setVolume(v); }
     );
@@ -590,15 +589,15 @@ export class MenuScene extends Phaser.Scene {
       (v) => { settingsStore.particles = v; }
     );
 
-    const closeY  = py + PH / 2 - 28;
-    const closeBg = this.add.rectangle(px, closeY, 180, 34, 0x3322AA)
-      .setStrokeStyle(1, 0xAA88FF).setDepth(82).setInteractive({ useHandCursor: true });
+    const closeY  = py + PH / 2 - 30;
+    const closeBg = this.add.rectangle(px, closeY, 190, 34, 0x1E2DAA)
+      .setStrokeStyle(1, 0x7788FF).setDepth(82).setInteractive({ useHandCursor: true });
     const closeTxt = this.add.text(px, closeY, 'SAVE & CLOSE', {
       fontSize: '13px', fill: '#FFFFFF', fontFamily: 'monospace',
     }).setOrigin(0.5).setDepth(83);
     els.push(closeBg, closeTxt);
-    closeBg.on('pointerover', () => closeBg.setFillStyle(0x5544DD));
-    closeBg.on('pointerout',  () => closeBg.setFillStyle(0x3322AA));
+    closeBg.on('pointerover', () => closeBg.setFillStyle(0x3A4ACC));
+    closeBg.on('pointerout',  () => closeBg.setFillStyle(0x1E2DAA));
     closeBg.on('pointerdown', () => {
       settingsStore.save();
       soundMgr.setVolume(settingsStore.sfxVolume);
@@ -606,8 +605,7 @@ export class MenuScene extends Phaser.Scene {
     });
 
     overlay.on('pointerdown', (ptr) => {
-      const dx = Math.abs(ptr.x - px), dy = Math.abs(ptr.y - py);
-      if (dx > PW / 2 || dy > PH / 2) {
+      if (Math.abs(ptr.x - px) > PW / 2 || Math.abs(ptr.y - py) > PH / 2) {
         settingsStore.save();
         soundMgr.setVolume(settingsStore.sfxVolume);
         els.forEach(e => e.destroy());
@@ -618,87 +616,110 @@ export class MenuScene extends Phaser.Scene {
   // ── Achievements overlay ──────────────────────────────────
 
   _openAchievements() {
-    const { achievementSys } = window._siegeGlobals ?? {};
-    const PW = 560, PH = 400;
+    const PW = 600, PH = 460;
     const px = VW / 2, py = VH / 2;
 
-    const overlay = this.add.rectangle(px, py, VW, VH, 0x000000, 0.76).setDepth(80).setInteractive();
-    const panel   = this.add.rectangle(px, py, PW, PH, 0x0E0A0E, 1)
-      .setStrokeStyle(2, 0xFFAA44).setDepth(81);
-    const title   = this.add.text(px, py - PH / 2 + 18, 'ACHIEVEMENTS', {
-      fontSize: '15px', fill: '#FFAA44', fontFamily: 'monospace', fontStyle: 'bold',
-    }).setOrigin(0.5, 0.5).setDepth(82);
+    const overlay = this.add.rectangle(px, py, VW, VH, 0x000000, 0.78).setDepth(80).setInteractive();
+    const panel   = this.add.rectangle(px, py, PW, PH, 0x080910).setStrokeStyle(2, 0xCC8822).setDepth(81);
+    const stripe  = this.add.rectangle(px, py - PH / 2 + 1.5, PW, 3, 0xFFAA33).setDepth(82);
 
-    // Load achievement data
+    const els = [overlay, panel, stripe];
+    const d   = (el) => { els.push(el.setDepth(82)); return el; };
+
+    d(this.add.text(px, py - PH / 2 + 20, 'ACHIEVEMENTS', {
+      fontSize: '16px', fill: '#FFAA44', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5));
+    d(this.add.rectangle(px, py - PH / 2 + 37, PW - 24, 1, 0xCC8822, 0.5));
+
+    // Load unlocked set
     let unlocked = new Set();
     try {
       const raw = localStorage.getItem('siege_eternal_achievements');
-      if (raw) { const arr = JSON.parse(raw); arr.forEach(id => unlocked.add(id)); }
+      if (raw) JSON.parse(raw).forEach(id => unlocked.add(id));
     } catch (_) {}
 
-    // Inline defs for display (mirrors AchievementSystem without import)
-    const raw = localStorage.getItem('siege_eternal_achievements_defs');
     const defs = [
-      { id: 'first_blood', name: 'First Blood', desc: 'Kill your first enemy' },
-      { id: 'wave_1', name: 'Night One', desc: 'Survive 1 day' },
-      { id: 'wave_10', name: 'Survivor', desc: 'Survive 10 days' },
-      { id: 'wave_25', name: 'Veteran', desc: 'Survive 25 days' },
-      { id: 'wave_50', name: 'Legendary', desc: 'Survive 50 days' },
-      { id: 'wave_100', name: 'Eternal', desc: 'Survive 100 days' },
-      { id: 'kills_100', name: 'Slayer', desc: 'Kill 100 enemies' },
-      { id: 'kills_1000', name: 'Massacre', desc: 'Kill 1,000 enemies' },
-      { id: 'first_boss', name: 'Boss Slayer', desc: 'Kill your first boss' },
-      { id: 'all_bosses', name: 'Tyrant Slayer', desc: 'Kill all 3 boss types in one run' },
-      { id: 'keys_100', name: 'Master Lockpick', desc: 'Collect 100 keys in a single run' },
-      { id: 'emerald_100', name: 'Emerald Hoarder', desc: 'Hold 100 emerald at once' },
-      { id: 'crystal_100', name: 'Crystal Lord', desc: 'Hold 100 crystal at once' },
-      { id: 'ruby_100', name: 'Ruby Baron', desc: 'Hold 100 ruby at once' },
-      { id: 'souls_1k', name: 'Soul Collector', desc: 'Accumulate 1,000 souls in one run' },
-      { id: 'souls_10k', name: 'Soul Reaper', desc: 'Accumulate 10,000 souls in one run' },
-      { id: 'cave_master', name: 'Cave Master', desc: 'Enter the deep cave' },
-      { id: 'dungeon_clear', name: 'Vault Breaker', desc: 'Clear the dungeon' },
-      { id: 'full_armor', name: 'Fully Armoured', desc: 'Equip a full armor set' },
-      { id: 'wave_10_1hp', name: 'Ironman', desc: 'Survive 10 days in 1 HP Mode' },
-      { id: 'challenge_1', name: 'Challenger', desc: 'Complete a run with any challenge mod' },
-      { id: 'challenge_all', name: 'Supreme Challenge', desc: 'Complete a run with all 4 mods active' },
-      { id: 'cursed_unlock', name: 'Into the Dark', desc: 'Unlock the cursed area' },
-      { id: 'raid_complete', name: 'Raid Defender', desc: 'Complete a raid event' },
-      { id: 'supply_defended', name: 'Logistics Expert', desc: 'Protect a supply crate to completion' },
-      { id: 'weather_all', name: 'Storm Chaser', desc: 'Encounter all 10 weather types' },
-      { id: 'revive_used', name: 'Second Chance', desc: 'Use a Revive Token' },
-      { id: 'contract_all', name: 'Contract Fulfilled', desc: 'Complete all 3 contracts in one run' },
-      { id: 'level_10', name: 'Seasoned', desc: 'Reach player level 10' },
-      { id: 'permadeath_win', name: 'Immortal', desc: 'Reach wave 20 without dying' },
-      { id: 'blueprints_all', name: 'Architect', desc: 'Unlock all blueprints' },
-      { id: 'collector', name: 'Hoarder', desc: 'Collect 500 of any one resource' },
+      { id: 'first_blood',    name: 'First Blood',       desc: 'Kill your first enemy'                         },
+      { id: 'wave_1',         name: 'Night One',          desc: 'Survive 1 day'                                },
+      { id: 'wave_10',        name: 'Survivor',           desc: 'Survive 10 days'                              },
+      { id: 'wave_25',        name: 'Veteran',            desc: 'Survive 25 days'                              },
+      { id: 'wave_50',        name: 'Legendary',          desc: 'Survive 50 days'                              },
+      { id: 'wave_100',       name: 'Eternal',            desc: 'Survive 100 days'                             },
+      { id: 'kills_100',      name: 'Slayer',             desc: 'Kill 100 enemies'                             },
+      { id: 'kills_1000',     name: 'Massacre',           desc: 'Kill 1,000 enemies'                           },
+      { id: 'first_boss',     name: 'Boss Slayer',        desc: 'Kill your first boss'                         },
+      { id: 'all_bosses',     name: 'Tyrant Slayer',      desc: 'Kill all 3 boss types in one run'             },
+      { id: 'keys_100',       name: 'Lockpick',           desc: 'Collect 100 keys in a single run'             },
+      { id: 'emerald_100',    name: 'Emerald Hoarder',    desc: 'Hold 100 emerald at once'                     },
+      { id: 'crystal_100',    name: 'Crystal Lord',       desc: 'Hold 100 crystal at once'                     },
+      { id: 'ruby_100',       name: 'Ruby Baron',         desc: 'Hold 100 ruby at once'                        },
+      { id: 'souls_1k',       name: 'Soul Collector',     desc: 'Accumulate 1,000 souls in one run'            },
+      { id: 'souls_10k',      name: 'Soul Reaper',        desc: 'Accumulate 10,000 souls in one run'           },
+      { id: 'cave_master',    name: 'Cave Master',        desc: 'Enter the deep cave'                          },
+      { id: 'dungeon_clear',  name: 'Vault Breaker',      desc: 'Clear the dungeon'                            },
+      { id: 'full_armor',     name: 'Fully Armoured',     desc: 'Equip a full armor set'                       },
+      { id: 'wave_10_1hp',    name: 'Ironman',            desc: 'Survive 10 days in 1 HP Mode'                 },
+      { id: 'challenge_1',    name: 'Challenger',         desc: 'Complete a run with any challenge mod'        },
+      { id: 'challenge_all',  name: 'Supreme Challenge',  desc: 'All 4 challenge mods active in one run'       },
+      { id: 'cursed_unlock',  name: 'Into the Dark',      desc: 'Unlock the cursed area'                       },
+      { id: 'raid_complete',  name: 'Raid Defender',      desc: 'Complete a raid event'                        },
+      { id: 'supply_defended',name: 'Logistics Expert',   desc: 'Protect a supply crate to completion'         },
+      { id: 'weather_all',    name: 'Storm Chaser',       desc: 'Encounter all 10 weather types'               },
+      { id: 'revive_used',    name: 'Second Chance',      desc: 'Use a Revive Token'                           },
+      { id: 'contract_all',   name: 'Contracts Done',     desc: 'Complete all 3 contracts in one run'          },
+      { id: 'level_10',       name: 'Seasoned',           desc: 'Reach player level 10'                        },
+      { id: 'permadeath_win', name: 'Immortal',           desc: 'Reach wave 20 without dying'                  },
+      { id: 'blueprints_all', name: 'Architect',          desc: 'Unlock all blueprints'                        },
+      { id: 'collector',      name: 'Hoarder',            desc: 'Collect 500 of any one resource'              },
     ];
 
-    const els = [overlay, panel, title];
-    const COLS = 3, ROW_H = 28, startY = py - PH / 2 + 48;
-    const colW = PW / COLS;
+    const COLS = 3;
+    const ROW_H = 34;
+    const startY = py - PH / 2 + 52;
+    const colW   = (PW - 32) / COLS;
+
     defs.forEach((def, i) => {
-      const col  = i % COLS;
-      const row  = Math.floor(i / COLS);
-      const ax   = px - PW / 2 + 16 + col * colW;
-      const ay   = startY + row * ROW_H;
-      const done = unlocked.has(def.id);
-      const nameCol = done ? '#FFD700' : '#443322';
-      const descCol = done ? '#AAAAAA' : '#221A10';
-      const pre     = done ? '★ ' : '○ ';
-      els.push(
-        this.add.text(ax, ay,      pre + def.name, { fontSize: '9px', fill: nameCol, fontFamily: 'monospace', fontStyle: 'bold' }).setDepth(82),
-        this.add.text(ax, ay + 13, def.desc,        { fontSize: '7px', fill: descCol, fontFamily: 'monospace' }).setDepth(82),
-      );
+      const col   = i % COLS;
+      const row   = Math.floor(i / COLS);
+      const ax    = px - PW / 2 + 16 + col * colW;
+      const ay    = startY + row * ROW_H;
+      const done  = unlocked.has(def.id);
+
+      // Row background for unlocked entries
+      if (done) {
+        d(this.add.rectangle(ax + colW / 2 - 8, ay + 13, colW - 4, 30, 0x1A1200, 0.8)
+          .setStrokeStyle(1, 0x664400, 0.6));
+      }
+      d(this.add.text(ax + 4, ay + 4, done ? '★' : '○', {
+        fontSize: '11px', fill: done ? '#FFD700' : '#3A2A1A', fontFamily: 'monospace',
+      }));
+      d(this.add.text(ax + 20, ay + 4, def.name, {
+        fontSize: '10px', fill: done ? '#FFD700' : '#3A3020', fontFamily: 'monospace', fontStyle: done ? 'bold' : '',
+      }));
+      d(this.add.text(ax + 20, ay + 18, def.desc, {
+        fontSize: '8px', fill: done ? '#AA9966' : '#2A2018', fontFamily: 'monospace',
+      }));
     });
 
-    const countDone = defs.filter(d => unlocked.has(d.id)).length;
-    els.push(this.add.text(px, py + PH / 2 - 18, `${countDone} / ${defs.length} unlocked`, {
-      fontSize: '10px', fill: '#888888', fontFamily: 'monospace',
-    }).setOrigin(0.5, 0.5).setDepth(82));
+    const countDone = defs.filter(def => unlocked.has(def.id)).length;
+    const countTxt  = d(this.add.text(px - 80, py + PH / 2 - 22, `${countDone} / ${defs.length} unlocked`, {
+      fontSize: '11px', fill: '#AA8844', fontFamily: 'monospace',
+    }).setOrigin(0, 0.5));
+
+    // Close button
+    const closeBg = this.add.rectangle(px + 120, py + PH / 2 - 22, 130, 28, 0x221A00)
+      .setStrokeStyle(1, 0xCC8822).setDepth(82).setInteractive({ useHandCursor: true });
+    const closeTxt = this.add.text(px + 120, py + PH / 2 - 22, 'CLOSE', {
+      fontSize: '12px', fill: '#FFAA44', fontFamily: 'monospace',
+    }).setOrigin(0.5).setDepth(83);
+    els.push(closeBg, closeTxt);
+    closeBg.on('pointerover', () => { closeBg.setFillStyle(0x3A2800); closeTxt.setStyle({ fill: '#FFFFFF' }); });
+    closeBg.on('pointerout',  () => { closeBg.setFillStyle(0x221A00); closeTxt.setStyle({ fill: '#FFAA44' }); });
+    closeBg.on('pointerdown', () => els.forEach(e => e.destroy()));
 
     overlay.on('pointerdown', (ptr) => {
-      const dx = Math.abs(ptr.x - px), dy = Math.abs(ptr.y - py);
-      if (dx > PW / 2 || dy > PH / 2) els.forEach(e => e.destroy());
+      if (Math.abs(ptr.x - px) > PW / 2 || Math.abs(ptr.y - py) > PH / 2)
+        els.forEach(e => e.destroy());
     });
   }
 }

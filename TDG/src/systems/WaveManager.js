@@ -315,6 +315,7 @@ export class WaveManager {
     let count = 0;
     for (const chest of scene.chests) {
       if (!chest.isOpen) continue;
+      if (chest.type === 'starter') continue;   // starter chest is one-time only
       chest.isOpen = false;
       const tex = CHEST_TEX[chest.type] ?? 'chest_locked';
       chest.sprite?.setTexture(tex).setAlpha(1);

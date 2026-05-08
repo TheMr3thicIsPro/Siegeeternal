@@ -227,7 +227,7 @@ export class EnemyManager {
         const boneChest = scene.armor === 'armor_bone';
         const bonePants = scene.pants  === 'bone_pants';
         if (boneChest || bonePants) {
-          const baseRange  = boneChest ? 200 : 96;
+          const baseRange  = boneChest ? 350 : 96;
           const pantsMulti = bonePants ? 0.70 : 1.0;
           if (Math.hypot(sp.x - px, sp.y - py) > baseRange * pantsMulti) {
             sp.body.setVelocity(0, 0);

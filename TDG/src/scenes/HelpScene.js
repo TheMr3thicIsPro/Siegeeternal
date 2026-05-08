@@ -243,7 +243,7 @@ const HTP_SECTIONS = [
       '',
       '👻 Bone Set  (stealth):',
       '  Helm: +2 armor · enemies detect you 30% slower',
-      '  Chest: +5 armor · stealth range 200px (enemies freeze beyond this)',
+      '  Chest: +5 armor · stealth range 350px (enemies freeze beyond this)',
       '  Greaves: +1 armor · 30% smaller enemy aggro range',
       '  Boots: +1 armor · +10% speed',
       '  FULL BONUS: Ghost Dancer — 20% chance enemies completely ignore your hit',
@@ -404,7 +404,7 @@ const HTP_SECTIONS = [
       'Legendary Chest — no key · massive rare ore haul (crystal/ruby/emerald)',
       'Cursed Chest    — no key · 50% huge reward OR 50% deals 30 dmg to you',
       'Trap Chest      — no key · small bone+gold + spawns 4 enemies on open',
-      'Starter Chest   — no key · generous early-game resource bundle',
+      'Starter Chest   — no key · generous early-game resource bundle · ONE-TIME only',
       '',
       'TIP: Save Boss Keys for Boss Chests — best rare ore payout in the game!',
     ],
@@ -799,55 +799,73 @@ export class HelpScene extends Phaser.Scene {
   // ── Chrome ───────────────────────────────────────────────
 
   _buildChrome() {
-    this.add.rectangle(VW / 2, VH / 2, VW, VH, 0x0a0808);
+    // Deep-space background
+    this.add.rectangle(VW / 2, VH / 2, VW, VH, 0x04060E);
+    const hdrGfx = this.add.graphics();
+    hdrGfx.fillGradientStyle(0x0C1230, 0x0C1230, 0x04060E, 0x04060E, 1);
+    hdrGfx.fillRect(0, 0, VW, CONTENT_Y);
 
-    this.add.text(VW / 2, 22, 'SIEGE ETERNAL — CODEX', {
-      fontSize: '24px', fill: '#EDE0C4', fontFamily: 'monospace',
-      stroke: '#3D2B1F', strokeThickness: 3,
+    // Title shadow + title
+    this.add.text(VW / 2 + 2, 23, 'SIEGE ETERNAL — CODEX', {
+      fontSize: '21px', fill: '#0C1840', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    this.add.text(VW / 2, 21, 'SIEGE ETERNAL — CODEX', {
+      fontSize: '21px', fill: '#C8A060', fontFamily: 'monospace', fontStyle: 'bold',
+      stroke: '#1A0C00', strokeThickness: 3,
     }).setOrigin(0.5);
 
-    const back = this.add.text(VW - 24, 22, '[ BACK ]', {
-      fontSize: '13px', fill: '#C8A96E', fontFamily: 'monospace',
-    }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
-    back.on('pointerover', () => back.setStyle({ fill: '#FFE090' }));
-    back.on('pointerout',  () => back.setStyle({ fill: '#C8A96E' }));
-    back.on('pointerdown', () => this._goBack());
+    // Back button
+    const backBg = this.add.rectangle(VW - 56, 21, 88, 26, 0x080A14)
+      .setStrokeStyle(1, 0x2A2A44).setInteractive({ useHandCursor: true });
+    const backTxt = this.add.text(VW - 56, 21, '← BACK', {
+      fontSize: '11px', fill: '#C8A060', fontFamily: 'monospace',
+    }).setOrigin(0.5);
+    backBg.on('pointerover', () => { backBg.setFillStyle(0x161828); backBg.setStrokeStyle(1, 0xD4A017); backTxt.setStyle({ fill: '#FFFFFF' }); });
+    backBg.on('pointerout',  () => { backBg.setFillStyle(0x080A14); backBg.setStrokeStyle(1, 0x2A2A44); backTxt.setStyle({ fill: '#C8A060' }); });
+    backBg.on('pointerdown', () => this._goBack());
 
-    this.add.rectangle(VW / 2, 42, VW, 1, 0x3D2B1F);
+    const g = this.add.graphics();
+    g.lineStyle(1, 0x1A1840, 1);
+    g.lineBetween(0, 42, VW, 42);
 
-    this._btnTowers  = this._makeTabBtn(VW / 2 - 180, 72, 'TOWERS',      () => this._showTab('towers'));
-    this._btnEnemies = this._makeTabBtn(VW / 2 - 60,  72, 'ENEMIES',     () => this._showTab('enemies'));
-    this._btnWeather = this._makeTabBtn(VW / 2 + 60,  72, 'WEATHER',     () => this._showTab('weather'));
-    this._btnHTP     = this._makeTabBtn(VW / 2 + 180, 72, 'HOW TO PLAY', () => this._showTab('htp'));
+    // Tab buttons — each with its own accent colour
+    const TABS = [
+      { key: 'towers',  label: 'TOWERS',      col: 0x44AA55, x: VW / 2 - 192 },
+      { key: 'enemies', label: 'ENEMIES',      col: 0xCC3322, x: VW / 2 - 64  },
+      { key: 'weather', label: 'WEATHER',      col: 0x2299CC, x: VW / 2 + 64  },
+      { key: 'htp',     label: 'HOW TO PLAY',  col: 0xD4A017, x: VW / 2 + 192 },
+    ];
+    const TAB_ACTIVE_BG = { towers: 0x071A0C, enemies: 0x1A0606, weather: 0x06141E, htp: 0x1A1200 };
+    this._tabBtns = {};
+    TABS.forEach(({ key, label, col, x }) => {
+      const hexCol = '#' + col.toString(16).padStart(6, '0');
+      const bg = this.add.rectangle(x, 72, 128, 28, 0x080A14)
+        .setStrokeStyle(1, 0x1E1C32).setInteractive({ useHandCursor: true });
+      this.add.rectangle(x, 72 - 14 + 1.5, 128, 3, col, 0.75);
+      const txt = this.add.text(x, 73, label, { fontSize: '11px', fill: hexCol, fontFamily: 'monospace' }).setOrigin(0.5);
+      bg.on('pointerover', () => { if (!bg.getData('on')) { bg.setFillStyle(0x141828); bg.setStrokeStyle(1, col); txt.setStyle({ fill: '#FFFFFF' }); } });
+      bg.on('pointerout',  () => { if (!bg.getData('on')) { bg.setFillStyle(0x080A14); bg.setStrokeStyle(1, 0x1E1C32); txt.setStyle({ fill: hexCol }); } });
+      bg.on('pointerdown', () => this._showTab(key));
+      this._tabBtns[key] = { bg, txt, col, hexCol, activeBg: TAB_ACTIVE_BG[key] ?? 0x101828 };
+    });
 
-    this.add.rectangle(VW / 2, CONTENT_Y - 4, VW, 1, 0x3D2B1F);
+    g.lineBetween(0, CONTENT_Y - 4, VW, CONTENT_Y - 4);
 
-    this._fadeBar    = this.add.rectangle(VW / 2, VH - 20, VW, 50, 0x0a0808, 0.85).setDepth(20);
-    this._scrollHint = this.add.text(VW / 2, VH - 14, 'scroll for more', {
-      fontSize: '10px', fill: '#4A4030', fontFamily: 'monospace',
+    this._fadeBar    = this.add.rectangle(VW / 2, VH - 20, VW, 50, 0x04060E, 0.92).setDepth(20);
+    this._scrollHint = this.add.text(VW / 2, VH - 14, 'scroll  ↓', {
+      fontSize: '10px', fill: '#3A3A5A', fontFamily: 'monospace',
     }).setOrigin(0.5).setDepth(21);
   }
 
-  _makeTabBtn(x, y, label, cb) {
-    const btn = this.add.text(x, y, label, {
-      fontSize: '14px', fill: '#7A6545', fontFamily: 'monospace',
-      backgroundColor: '#1A1210', padding: { x: 14, y: 7 },
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-    btn.on('pointerover',  () => { if (!btn.getData('on')) btn.setStyle({ fill: '#C8A96E' }); });
-    btn.on('pointerout',   () => { if (!btn.getData('on')) btn.setStyle({ fill: '#7A6545' }); });
-    btn.on('pointerdown',  cb);
-    return btn;
-  }
-
   _setTabHighlight(tab) {
-    const set = (btn, on) => {
-      btn.setData('on', on);
-      btn.setStyle({ fill: on ? '#FFE090' : '#7A6545', backgroundColor: on ? '#3D2B1F' : '#1A1210' });
-    };
-    set(this._btnTowers,  tab === 'towers');
-    set(this._btnEnemies, tab === 'enemies');
-    set(this._btnWeather, tab === 'weather');
-    set(this._btnHTP,     tab === 'htp');
+    Object.keys(this._tabBtns).forEach(key => {
+      const { bg, txt, col, hexCol, activeBg } = this._tabBtns[key];
+      const on = key === tab;
+      bg.setData('on', on);
+      bg.setFillStyle(on ? activeBg : 0x080A14);
+      bg.setStrokeStyle(1, on ? col : 0x1E1C32);
+      txt.setStyle({ fill: on ? '#FFFFFF' : hexCol });
+    });
   }
 
   // ── Tower cards ──────────────────────────────────────────
