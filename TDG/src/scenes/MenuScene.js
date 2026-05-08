@@ -9,9 +9,10 @@ import { soundMgr }        from '../systems/SoundManager.js';
 const SLOT_KEYS = ['siege_eternal_save_1', 'siege_eternal_save_2', 'siege_eternal_save_3'];
 
 // ── Version history ───────────────────────────────────────
-export const CURRENT_VERSION = 'v0.13.2';
+export const CURRENT_VERSION = 'v0.14.0';
 
 const VERSION_HISTORY = [
+  { ver: 'v0.14.0', date: 'May 2026', notes: 'Deep-space menu redesign · Aurora bg, star field, shooting star · New 72px world slots with accent bars & chips inside · Featured MULTIPLAYER glow button · Colored nav row (Codex/Blueprints/Achievements/Settings)' },
   { ver: 'v0.13.2', date: 'May 2026', notes: 'Supabase connected — multiplayer HOST/JOIN now live · Supabase CDN loaded in index.html' },
   { ver: 'v0.13.1', date: 'May 2026', notes: 'Fix: save after craft (no more equipment loss) · Fix: no_towers challenge enforced · Fix: achievements overlay layout · Fix: playerMaxHP saved/restored · Multiplayer co-op via Supabase (HOST/JOIN lobby)' },
   { ver: 'v0.13.0', date: 'May 2026', notes: 'Ruby Bow (fast/15dmg) + Emerald Bow (heavy/45dmg) · Arrow animation · Bridge persistence fix · Trap chest fix · Boss safe-edge spawn · Cave 60% darker w/o torch · Level-up auto-bonus (+10 HP) · Concrete contracts · 30+ achievements · Revive sound+effect · Death cause screen · Achievements menu · Resource regen every 3 days · Bed 2× speed' },
@@ -49,230 +50,269 @@ export class MenuScene extends Phaser.Scene {
 
   create() {
     _migrateOldSave();
-
     const cx = VW / 2;
 
-    // ── Background ─────────────────────────────────────────
-    this.add.rectangle(cx, VH / 2, VW, VH, 0x06080F);
+    // ── Background: deep-space layers ─────────────────────
+    this.add.rectangle(cx, VH / 2, VW, VH, 0x04060E);
 
-    const glow = this.add.graphics();
-    glow.fillGradientStyle(0x1A0A30, 0x1A0A30, 0x0D1525, 0x0D1525, 1);
-    glow.fillRect(0, VH * 0.35, VW, VH * 0.65);
+    // Aurora glow — upper purple band
+    const aurora = this.add.graphics();
+    aurora.fillGradientStyle(0x1C0A38, 0x1C0A38, 0x08101E, 0x08101E, 0.85);
+    aurora.fillRect(0, 0, VW, VH * 0.52);
+    // Lower blue-grey fade
+    const auroraLow = this.add.graphics();
+    auroraLow.fillGradientStyle(0x060A18, 0x060A18, 0x030408, 0x030408, 1);
+    auroraLow.fillRect(0, VH * 0.45, VW, VH * 0.55);
+    // Subtle teal shimmer streak
+    const streak = this.add.graphics();
+    streak.fillGradientStyle(0x062030, 0x062030, 0x030810, 0x030810, 0.25);
+    streak.fillRect(VW * 0.05, VH * 0.08, VW * 0.9, VH * 0.28);
+    this.tweens.add({ targets: streak, alpha: { from: 0.5, to: 0.9 }, duration: 3800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
-    // Stars
+    // Stars — dense field, varied brightness
     const starGfx = this.add.graphics();
-    starGfx.fillStyle(0xFFFFFF, 1);
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 170; i++) {
       const sx = Math.random() * VW;
-      const sy = Math.random() * VH * 0.5;
-      starGfx.fillCircle(sx, sy, Math.random() < 0.15 ? 1.5 : 0.8);
+      const sy = Math.random() * VH * 0.58;
+      const bright = Math.random() < 0.07;
+      const sz = bright ? 1.6 : (Math.random() < 0.18 ? 1.1 : 0.65);
+      starGfx.fillStyle(0xFFFFFF, bright ? 0.95 : (0.25 + Math.random() * 0.45));
+      starGfx.fillCircle(sx, sy, sz);
     }
+
+    // Shooting star (periodic)
+    const shootStar = this.add.graphics();
+    const doShoot = () => {
+      shootStar.clear();
+      const sx = Math.random() * VW * 0.7 + VW * 0.15;
+      const sy = Math.random() * VH * 0.28;
+      shootStar.fillStyle(0xFFFFFF, 0.9);
+      shootStar.fillRect(sx, sy, 28, 1);
+      shootStar.fillStyle(0xAABBFF, 0.5);
+      shootStar.fillRect(sx + 28, sy, 12, 1);
+      this.tweens.add({
+        targets: shootStar, alpha: { from: 0.9, to: 0 }, x: 45, y: 22,
+        duration: 550, delay: 4000 + Math.random() * 9000,
+        onComplete: () => { shootStar.x = 0; shootStar.y = 0; doShoot(); },
+      });
+    };
+    doShoot();
 
     this._spawnEmbers();
 
-    // ── Title ──────────────────────────────────────────────
-    // Drop shadow
-    this.add.text(cx + 3, 83, 'SIEGE ETERNAL', {
-      fontSize: '52px', fill: '#1A0830', fontFamily: 'monospace', fontStyle: 'bold',
+    // ── Title ─────────────────────────────────────────────
+    this.add.text(cx + 3, 75, 'SIEGE ETERNAL', {
+      fontSize: '54px', fill: '#1C0640', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5).setAlpha(0.55);
+    const title = this.add.text(cx, 73, 'SIEGE ETERNAL', {
+      fontSize: '54px', fontFamily: 'monospace', fontStyle: 'bold',
+      fill: '#FFD97A', stroke: '#6A2C00', strokeThickness: 6,
     }).setOrigin(0.5);
-    // Main title
-    const title = this.add.text(cx, 80, 'SIEGE ETERNAL', {
-      fontSize: '52px', fontFamily: 'monospace', fontStyle: 'bold',
-      fill: '#FFD97A', stroke: '#7A3800', strokeThickness: 5,
-    }).setOrigin(0.5);
-    this.tweens.add({ targets: title, alpha: { from: 0.85, to: 1 }, duration: 1800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.tweens.add({ targets: title, alpha: { from: 0.87, to: 1 }, duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
-    // ── Tagline ────────────────────────────────────────────
-    this.add.text(cx, 136, 'Hold the line.  Build smarter.  Survive the siege.', {
-      fontSize: '13px', fill: '#9A8060', fontFamily: 'monospace',
+    // Tagline
+    this.add.text(cx, 132, '— Hold the line.  Build smarter.  Survive the siege. —', {
+      fontSize: '11px', fill: '#6A5038', fontFamily: 'monospace', letterSpacing: 1,
     }).setOrigin(0.5);
 
-    // ── Divider ────────────────────────────────────────────
-    const div = this.add.graphics();
-    div.lineStyle(1, 0x5A3A18, 0.7);
-    div.lineBetween(cx - 220, 156, cx + 220, 156);
-    div.fillStyle(0xD4A017, 0.8);
-    div.fillCircle(cx,       156, 3);
-    div.fillCircle(cx - 220, 156, 2);
-    div.fillCircle(cx + 220, 156, 2);
+    // Gold divider with ornament
+    const divG = this.add.graphics();
+    divG.lineStyle(1, 0x4A2E10, 0.9);
+    divG.lineBetween(cx - 240, 150, cx - 14, 150);
+    divG.lineBetween(cx + 14,  150, cx + 240, 150);
+    divG.fillStyle(0xD4A017, 1);
+    divG.fillRect(cx - 6, 147, 12, 6);
+    divG.fillStyle(0x7A5810, 0.8);
+    divG.fillCircle(cx - 240, 150, 2); divG.fillCircle(cx + 240, 150, 2);
 
-    // ── Best run badge ─────────────────────────────────────
+    // Best run badge
     const best = localStorage.getItem('siege_eternal_best') ?? localStorage.getItem('dungeonkeep_best');
     if (best) {
-      const badge = this.add.text(cx, 172, `Best run: Day ${best}`, {
-        fontSize: '12px', fill: '#D4A017', fontFamily: 'monospace',
+      const badge = this.add.text(cx, 163, `✦  Best Run: Day ${best}  ✦`, {
+        fontSize: '11px', fill: '#B88820', fontFamily: 'monospace',
       }).setOrigin(0.5);
-      this.tweens.add({ targets: badge, alpha: { from: 0.6, to: 1 }, duration: 2200, yoyo: true, repeat: -1 });
+      this.tweens.add({ targets: badge, alpha: { from: 0.5, to: 0.85 }, duration: 2600, yoyo: true, repeat: -1 });
     }
 
-    // ── Save slot label ────────────────────────────────────
-    this.add.text(cx, 194, 'SELECT  WORLD', {
-      fontSize: '10px', fill: '#5A4A35', fontFamily: 'monospace', letterSpacing: 3,
+    // ── World slots ────────────────────────────────────────
+    this.add.text(cx, 173, 'S E L E C T   W O R L D', {
+      fontSize: '9px', fill: '#3A2E1E', fontFamily: 'monospace', letterSpacing: 5,
     }).setOrigin(0.5);
 
-    // ── World slots (3 × 64px spacing) ────────────────────
-    const slotY = 214;
     for (let i = 0; i < 3; i++) {
-      this._makeWorldSlot(cx, slotY + i * 68, i + 1);
+      this._makeWorldSlot(cx, 183 + i * 80, i + 1);
     }
-    // Slot 3 bottom edge: slotY + 2*68 + 45 = 214+136+45 = 395
+    // Slot 3 bottom at 183 + 2*80 + 72 = 415
 
-    // ── Bottom action buttons ──────────────────────────────
-    const btnY = 418;
-    this._makeBtn(cx,       btnY - 38, 'MULTIPLAYER',  () => this.scene.start('Multiplayer'), 0x08101E, 0x88BBFF, 200);
-    this._makeBtn(cx - 315, btnY + 10, 'CODEX',        () => this.scene.start('Help'),        0x0E1E2E, 0x88BBFF, 130);
-    this._makeBtn(cx - 105, btnY + 10, 'BLUEPRINTS',   () => this.scene.start('Blueprints'),  0x0A1E0E, 0x44FFAA, 130);
-    this._makeBtn(cx + 105, btnY + 10, 'ACHIEVEMENTS', () => this._openAchievements(),        0x1E0E0E, 0xFFAA44, 130);
-    this._makeBtn(cx + 315, btnY + 10, 'SETTINGS',     () => this._openSettings(),            0x0E0E1E, 0xFFDD88, 130);
+    // ── MULTIPLAYER — featured button ─────────────────────
+    this._makeFeaturedBtn(cx, 443, '⚔  MULTIPLAYER  ⚔', () => this.scene.start('Multiplayer'));
+
+    // ── Nav row ────────────────────────────────────────────
+    const NAV = [
+      { label: 'CODEX',        col: 0x5599EE, cb: () => this.scene.start('Help')       },
+      { label: 'BLUEPRINTS',   col: 0x33CC88, cb: () => this.scene.start('Blueprints') },
+      { label: 'ACHIEVEMENTS', col: 0xEE8833, cb: () => this._openAchievements()       },
+      { label: 'SETTINGS',     col: 0xDDCC66, cb: () => this._openSettings()           },
+    ];
+    const NW = 183, NH = 30, NGAP = 8;
+    const ntotal = NAV.length * NW + (NAV.length - 1) * NGAP;
+    NAV.forEach((b, i) => {
+      const nx = cx - ntotal / 2 + NW / 2 + i * (NW + NGAP);
+      this._makeNavBtn(nx, 475, b.label, b.cb, b.col, NW, NH);
+    });
 
     // ── Meta souls ─────────────────────────────────────────
     const souls = metaProgression.balance;
-    this.add.text(cx, btnY + 36, `SOULS: ${souls}`, {
-      fontSize: '12px', fill: souls > 0 ? '#AA44FF' : '#3A2A4A',
-      fontFamily: 'monospace', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5);
+    if (souls > 0) {
+      const sg = this.add.graphics();
+      sg.fillStyle(0xAA44FF, 0.85); sg.fillCircle(cx - 52, 497, 5);
+      sg.fillStyle(0x8833CC, 0.5);  sg.fillCircle(cx - 52, 497, 8);
+      this.add.text(cx - 43, 497, `${souls}  META SOULS`, {
+        fontSize: '11px', fill: '#AA44FF', fontFamily: 'monospace',
+      }).setOrigin(0, 0.5);
+    }
 
     // ── Changelog ──────────────────────────────────────────
     this._buildVersionHistory();
 
-    // ── Footer bar ─────────────────────────────────────────
-    this.add.text(10, VH - 8, CURRENT_VERSION, {
-      fontSize: '9px', fill: '#3A2A40', fontFamily: 'monospace',
-    }).setOrigin(0, 1);
+    // ── Footer ─────────────────────────────────────────────
+    this.add.text(10, VH - 8, CURRENT_VERSION, { fontSize: '9px', fill: '#2E2040', fontFamily: 'monospace' }).setOrigin(0, 1);
+    this.add.text(cx, VH - 8, 'WASD  E  F  X  Tab — see Codex for controls', { fontSize: '9px', fill: '#2E2418', fontFamily: 'monospace' }).setOrigin(0.5, 1);
+    this.add.text(VW - 10, VH - 8, 'join.vibeschool on tiktok', { fontSize: '9px', fill: '#8A6030', fontFamily: 'monospace' }).setOrigin(1, 1).setAlpha(0.45);
 
-    this.add.text(cx, VH - 8, 'WASD  E  F  X  ~  1-5  Tab — see Codex for full controls', {
-      fontSize: '9px', fill: '#332A22', fontFamily: 'monospace',
-    }).setOrigin(0.5, 1);
-
-    this.add.text(VW - 10, VH - 8, 'join.vibeschool on tiktok', {
-      fontSize: '9px', fill: '#AA7744', fontFamily: 'monospace',
-    }).setOrigin(1, 1).setAlpha(0.5);
-
-    this.cameras.main.fadeIn(600, 0, 0, 0);
+    this.cameras.main.fadeIn(700, 0, 0, 0);
   }
 
   // ── World slot ─────────────────────────────────────────
 
   _makeWorldSlot(cx, y, slotId) {
-    const key  = SLOT_KEYS[slotId - 1];
-    const raw  = localStorage.getItem(key);
-    const save = raw ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : null;
-
+    const PH        = 72;
+    const key       = SLOT_KEYS[slotId - 1];
+    const raw       = localStorage.getItem(key);
+    const save      = raw ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : null;
     const hasSave   = !!save;
-    const dayLabel  = hasSave ? `Day ${save.wave ?? 0}` : 'Empty';
-    const btnText   = hasSave ? 'CONTINUE' : 'NEW GAME';
-    const panelCol  = hasSave ? 0x0E1E0E : 0x1A1410;
-    const borderCol = hasSave ? 0x336633 : 0x4A3020;
-    const hoverFill = hasSave ? 0x1A3A1A : 0x2A1E10;
+    const dayLabel  = hasSave ? `Day ${save.wave ?? 0}` : 'EMPTY';
+    const panelCol  = hasSave ? 0x0A1A0A : 0x100C08;
+    const accentCol = hasSave ? 0x2A6630 : 0x5A3A1A;
+    const glowCol   = hasSave ? 0x44AA55 : 0xAA6622;
+    const borderCol = hasSave ? 0x1E4A22 : 0x3A2418;
+    const hoverFill = hasSave ? 0x142A14 : 0x1E1408;
+    const slotCy    = y + PH / 2;
 
-    // Panel
-    const panel = this.add.rectangle(cx, y + 18, 520, 54, panelCol)
+    // Drop shadow
+    this.add.rectangle(cx + 2, slotCy + 3, 526, PH + 4, 0x000000, 0.45);
+
+    // Main panel
+    const panel = this.add.rectangle(cx, slotCy, 522, PH, panelCol)
       .setStrokeStyle(1, borderCol)
       .setInteractive({ useHandCursor: true });
 
-    // World number badge (left)
-    this.add.text(cx - 242, y + 10, `W${slotId}`, {
-      fontSize: '9px', fill: '#5A4535', fontFamily: 'monospace',
-    }).setOrigin(0, 0.5);
+    // Left accent bar
+    this.add.rectangle(cx - 259, slotCy, 4, PH, accentCol, 1);
 
-    // Save state (day count)
-    const statusTxt = this.add.text(cx - 130, y + 10, dayLabel, {
-      fontSize: '16px', fill: hasSave ? '#88EE88' : '#3A2A1A', fontFamily: 'monospace',
-    }).setOrigin(0, 0.5);
-
-    // Player level (below day count)
-    if (hasSave && save.playerLevel) {
-      const lvl = save.playerLevel.level ?? 1;
-      this.add.text(cx - 130, y + 28, `LVL ${lvl}`, {
-        fontSize: '10px', fill: '#AADDFF', fontFamily: 'monospace',
-      }).setOrigin(0, 0.5);
-    }
-
-    // Action button label (right)
-    const playTxt = this.add.text(cx + 140, y + 18, btnText, {
-      fontSize: '13px', fill: '#C8A96E', fontFamily: 'monospace',
+    // World number badge
+    this.add.rectangle(cx - 243, y + 13, 28, 16, accentCol, 0.35);
+    this.add.text(cx - 243, y + 13, `W${slotId}`, {
+      fontSize: '9px', fill: hasSave ? '#88FF99' : '#CC8844', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
-    // Arrow indicator
-    const arrow = this.add.text(cx + 210, y + 18, '>', {
-      fontSize: '14px', fill: hasSave ? '#44AA44' : '#5A4030', fontFamily: 'monospace',
+    // Day / status label
+    this.add.text(cx - 218, y + 8, dayLabel, {
+      fontSize: hasSave ? '17px' : '13px',
+      fill: hasSave ? '#88EE88' : '#4A3A2A',
+      fontFamily: 'monospace',
+    });
+
+    // Player level (existing saves)
+    if (hasSave && save.playerLevel) {
+      const lvl = save.playerLevel.level ?? 1;
+      this.add.text(cx - 218, y + 30, `LVL ${lvl}`, {
+        fontSize: '10px', fill: '#99CCFF', fontFamily: 'monospace',
+      });
+    }
+
+    // Action label + arrow (right side)
+    const btnText = hasSave ? 'CONTINUE' : 'NEW GAME';
+    const playTxt = this.add.text(cx + 145, slotCy, btnText, {
+      fontSize: '14px', fill: '#C8A96E', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    const arrow = this.add.text(cx + 213, slotCy, '▶', {
+      fontSize: '13px', fill: hasSave ? '#44AA44' : '#5A4030', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
     panel.on('pointerover', () => {
       panel.setFillStyle(hoverFill);
+      panel.setStrokeStyle(1, glowCol);
       playTxt.setStyle({ fill: '#FFFFFF' });
       arrow.setStyle({ fill: '#FFFFFF' });
     });
     panel.on('pointerout', () => {
       panel.setFillStyle(panelCol);
+      panel.setStrokeStyle(1, borderCol);
       playTxt.setStyle({ fill: '#C8A96E' });
       arrow.setStyle({ fill: hasSave ? '#44AA44' : '#5A4030' });
     });
 
-    // Hardcore toggle (empty slots only)
-    let isHardcore = false;
+    // ── Bottom strip (inside panel, y+42 → y+68) ───────────
+    const botY       = y + 55;
+    let isHardcore   = false;
+    const activeMods = {};
+
     if (!hasSave) {
-      const hcTxt = this.add.text(cx - 242, y + 30, '[  ] HARDCORE', {
-        fontSize: '9px', fill: '#663333', fontFamily: 'monospace',
+      const hcTxt = this.add.text(cx - 255, botY, '[  ] HARDCORE', {
+        fontSize: '8px', fill: '#664444', fontFamily: 'monospace',
         backgroundColor: '#140808', padding: { x: 4, y: 2 },
       }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
       hcTxt.on('pointerdown', (ptr) => {
         ptr.event.stopPropagation();
         isHardcore = !isHardcore;
         hcTxt.setText(isHardcore ? '[X] HARDCORE' : '[  ] HARDCORE');
-        hcTxt.setStyle({ fill: isHardcore ? '#FF4444' : '#663333' });
+        hcTxt.setStyle({ fill: isHardcore ? '#FF4444' : '#664444' });
       });
-    } else if (save?.isHardcore) {
-      this.add.text(cx - 242, y + 30, 'HARDCORE', {
-        fontSize: '9px', fill: '#FF4444', fontFamily: 'monospace',
-        backgroundColor: '#200000', padding: { x: 4, y: 2 },
-      }).setOrigin(0, 0.5);
-    }
 
-    // Theme badge (existing saves)
-    if (hasSave && save.mapTheme) {
-      const themeColor = { grass: '#44AA55', desert: '#CC8833', snow: '#88BBFF' }[save.mapTheme] ?? '#888888';
-      this.add.text(cx + 50, y + 30, save.mapTheme.toUpperCase(), {
-        fontSize: '8px', fill: themeColor, fontFamily: 'monospace',
-      }).setOrigin(0.5, 0.5);
-    }
-
-    // Challenge mod toggles for new game only
-    const activeMods = {};
-    if (!hasSave) {
-      const modKeys = Object.keys(CHALLENGE_MODS);
-      modKeys.forEach((modKey, mi) => {
+      Object.keys(CHALLENGE_MODS).forEach((modKey, mi) => {
         const mod  = CHALLENGE_MODS[modKey];
-        const mx   = cx - 242 + mi * 120;
-        const modTxt = this.add.text(mx, y + 50, `[  ] ${mod.name}`, {
-          fontSize: '8px', fill: '#555577', fontFamily: 'monospace',
-          backgroundColor: '#0A0A18', padding: { x: 3, y: 2 },
+        const chip = this.add.text(cx - 126 + mi * 104, botY, `[  ] ${mod.name}`, {
+          fontSize: '8px', fill: '#445566', fontFamily: 'monospace',
+          backgroundColor: '#0A0C18', padding: { x: 3, y: 2 },
         }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
-        modTxt.on('pointerdown', (ptr) => {
+        chip.on('pointerdown', (ptr) => {
           ptr.event.stopPropagation();
           activeMods[modKey] = !activeMods[modKey];
-          modTxt.setText(activeMods[modKey] ? `[X] ${mod.name}` : `[  ] ${mod.name}`);
-          modTxt.setStyle({ fill: activeMods[modKey] ? '#FF9944' : '#555577' });
+          chip.setText(activeMods[modKey] ? `[X] ${mod.name}` : `[  ] ${mod.name}`);
+          chip.setStyle({ fill: activeMods[modKey] ? '#FF9944' : '#445566' });
         });
       });
-    }
-
-    panel.on('pointerdown', () => {
-      this.cameras.main.fadeOut(400, 0, 0, 0);
-      this.time.delayedCall(400, () => {
-        this.scene.start('Game', {
-          newGame: !hasSave, slotId,
-          hardcore: !hasSave ? isHardcore : (save?.isHardcore ?? false),
-          challengeMods: !hasSave ? activeMods : (save?.challengeMods ?? {}),
-        });
-      });
-    });
-
-    // Clear button (existing saves only)
-    if (hasSave) {
-      const clrTxt = this.add.text(cx + 244, y + 18, 'X', {
-        fontSize: '11px', fill: '#663333', fontFamily: 'monospace',
-        backgroundColor: '#140808', padding: { x: 7, y: 4 },
+    } else {
+      let badgeX = cx - 255;
+      if (save.isHardcore) {
+        this.add.text(badgeX, botY, 'HARDCORE', {
+          fontSize: '8px', fill: '#FF4444', fontFamily: 'monospace',
+          backgroundColor: '#200000', padding: { x: 4, y: 2 },
+        }).setOrigin(0, 0.5);
+        badgeX += 82;
+      }
+      if (save.mapTheme) {
+        const themeColor = { grass: '#44AA55', desert: '#CC8833', snow: '#88BBFF' }[save.mapTheme] ?? '#888888';
+        this.add.text(badgeX, botY, save.mapTheme.toUpperCase(), {
+          fontSize: '8px', fill: themeColor, fontFamily: 'monospace',
+          backgroundColor: '#0A1008', padding: { x: 4, y: 2 },
+        }).setOrigin(0, 0.5);
+        badgeX += 58;
+      }
+      if (save.challengeMods) {
+        const chips = Object.entries(save.challengeMods).filter(([, v]) => v).map(([k]) => k.replace(/_/g, ' ').toUpperCase());
+        if (chips.length) {
+          this.add.text(badgeX, botY, chips.join(' + '), {
+            fontSize: '8px', fill: '#FF9944', fontFamily: 'monospace',
+            backgroundColor: '#180800', padding: { x: 3, y: 2 },
+          }).setOrigin(0, 0.5);
+        }
+      }
+      // Clear button
+      const clrTxt = this.add.text(cx + 243, slotCy, '✕', {
+        fontSize: '12px', fill: '#663333', fontFamily: 'monospace',
+        backgroundColor: '#140808', padding: { x: 6, y: 4 },
       }).setOrigin(0.5).setInteractive({ useHandCursor: true });
       clrTxt.on('pointerover', () => clrTxt.setStyle({ fill: '#FF6666' }));
       clrTxt.on('pointerout',  () => clrTxt.setStyle({ fill: '#663333' }));
@@ -282,19 +322,93 @@ export class MenuScene extends Phaser.Scene {
         this.scene.restart();
       });
     }
+
+    panel.on('pointerdown', () => {
+      this.cameras.main.fadeOut(400, 0, 0, 0);
+      this.time.delayedCall(400, () => {
+        this.scene.start('Game', {
+          newGame: !hasSave, slotId,
+          hardcore:      !hasSave ? isHardcore        : (save?.isHardcore     ?? false),
+          challengeMods: !hasSave ? activeMods         : (save?.challengeMods ?? {}),
+        });
+      });
+    });
+  }
+
+  // ── Featured button (MULTIPLAYER) ──────────────────────
+
+  _makeFeaturedBtn(x, y, label, cb) {
+    const W = 362, H = 38;
+    // Outer glow shadow
+    this.add.rectangle(x, y + 3, W + 8, H + 6, 0x0A1840, 0.7);
+    // Panel
+    const bg = this.add.rectangle(x, y, W, H, 0x0B1636)
+      .setStrokeStyle(1, 0x3355BB)
+      .setInteractive({ useHandCursor: true });
+    // Top accent stripe
+    this.add.rectangle(x, y - H / 2 + 1.5, W, 3, 0x4466EE, 0.9);
+    // Animated inner glow
+    const glow = this.add.rectangle(x, y, W - 4, H - 4, 0x1A3488, 0)
+      .setStrokeStyle(1, 0x4466CC, 0);
+    this.tweens.add({ targets: glow, alpha: { from: 0.08, to: 0.4 }, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    // Label
+    const txt = this.add.text(x, y + 1, label, {
+      fontSize: '15px', fill: '#7AAAFF', fontFamily: 'monospace', fontStyle: 'bold',
+      letterSpacing: 2,
+    }).setOrigin(0.5);
+
+    bg.on('pointerover', () => {
+      bg.setFillStyle(0x1A2E66);
+      bg.setStrokeStyle(2, 0x6688FF);
+      txt.setStyle({ fill: '#FFFFFF' });
+    });
+    bg.on('pointerout', () => {
+      bg.setFillStyle(0x0B1636);
+      bg.setStrokeStyle(1, 0x3355BB);
+      txt.setStyle({ fill: '#7AAAFF' });
+    });
+    bg.on('pointerdown', cb);
+    return bg;
+  }
+
+  // ── Nav button ──────────────────────────────────────────
+
+  _makeNavBtn(x, y, label, cb, accentCol, w, h) {
+    const hexCol = '#' + accentCol.toString(16).padStart(6, '0');
+    const bg = this.add.rectangle(x, y, w, h, 0x080A12)
+      .setStrokeStyle(1, 0x1E1C2E)
+      .setInteractive({ useHandCursor: true });
+    // Coloured top accent stripe
+    this.add.rectangle(x, y - h / 2 + 1.5, w, 3, accentCol, 0.85);
+    const txt = this.add.text(x, y + 1, label, {
+      fontSize: '10px', fill: hexCol, fontFamily: 'monospace',
+    }).setOrigin(0.5);
+
+    bg.on('pointerover', () => {
+      bg.setFillStyle(0x161824);
+      bg.setStrokeStyle(1, accentCol);
+      txt.setStyle({ fill: '#FFFFFF' });
+    });
+    bg.on('pointerout', () => {
+      bg.setFillStyle(0x080A12);
+      bg.setStrokeStyle(1, 0x1E1C2E);
+      txt.setStyle({ fill: hexCol });
+    });
+    bg.on('pointerdown', cb);
+    return bg;
   }
 
   // ── Changelog (centered, full-width strip) ────────────────
 
   _buildVersionHistory() {
-    const ENTRIES  = VERSION_HISTORY.slice(0, 6);
+    const ENTRIES  = VERSION_HISTORY.slice(0, 4);
     const ROW_H    = 17;
     const HEADER_H = 22;
     const PAD_BOT  = 8;
-    const panW     = VW - 24;       // 936px — nearly full width
+    const panW     = VW - 24;
     const panH     = HEADER_H + ENTRIES.length * ROW_H + PAD_BOT;
     const panX     = VW / 2;
-    const panY     = 476 + panH / 2;
+    const panY     = 510 + panH / 2;
 
     // Panel background
     this.add.rectangle(panX, panY, panW, panH, 0x070710, 0.90)
