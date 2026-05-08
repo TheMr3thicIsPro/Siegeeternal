@@ -743,6 +743,20 @@ const HTP_SECTIONS = [
     ],
   },
   {
+    title: 'Progressive Difficulty  (every 5 waves)',
+    lines: [
+      'Enemy strength scales up automatically every 5 waves:',
+      '  Waves  1-5   — base stats',
+      '  Waves  6-10  — +10% HP, +10% speed, +10% spawn count',
+      '  Waves 11-15  — +20% HP, +20% speed, +20% spawn count',
+      '  Waves 16-20  — +30% HP, +30% speed, +30% spawn count',
+      '  (stacks +10% every 5 waves — no cap)',
+      'A ⚡ warning message fires at night start when the scale increases.',
+      'Bosses are excluded — only regular enemies scale.',
+      'This stacks with Boss Kill Escalation (+15% per boss death).',
+    ],
+  },
+  {
     title: 'Challenge Runs  (modifiers for more meta soul rewards)',
     lines: [
       'On the main menu, toggle Challenge Mods before starting a NEW run.',

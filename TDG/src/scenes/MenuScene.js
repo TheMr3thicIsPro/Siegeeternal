@@ -9,9 +9,10 @@ import { soundMgr }        from '../systems/SoundManager.js';
 const SLOT_KEYS = ['siege_eternal_save_1', 'siege_eternal_save_2', 'siege_eternal_save_3'];
 
 // ── Version history ───────────────────────────────────────
-export const CURRENT_VERSION = 'v0.14.1';
+export const CURRENT_VERSION = 'v0.14.2';
 
 const VERSION_HISTORY = [
+  { ver: 'v0.14.2', date: 'May 2026', notes: 'Merchant sold-out text leak fixed · Dungeon uses proper textures + swing arc + death particles + boss HP bar · Progressive enemy scaling: +10% HP/SPD/count every 5 waves · Codex updated' },
   { ver: 'v0.14.1', date: 'May 2026', notes: 'Settings/Achievements overlay redesign · Bone chestplate stealth 350px · Starter chest one-time only · Codex chrome deep-space restyle' },
   { ver: 'v0.14.0', date: 'May 2026', notes: 'Deep-space menu redesign · Aurora bg, star field, shooting star · New 72px world slots with accent bars & chips inside · Featured MULTIPLAYER glow button · Colored nav row (Codex/Blueprints/Achievements/Settings)' },
   { ver: 'v0.13.2', date: 'May 2026', notes: 'Supabase connected — multiplayer HOST/JOIN now live · Supabase CDN loaded in index.html' },
